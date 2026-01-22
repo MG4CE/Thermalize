@@ -1,0 +1,5 @@
+__pychace__/
+app_data/
+config.json
+image_db.json
+bluetooth_device_db.json
