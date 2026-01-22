@@ -2,7 +2,7 @@
 Image processing module implementing various dithering algorithms.
 """
 
-from PIL import Image, ImageOps
+from PIL import Image # type: ignore
 
 class DitheringMethod:
     FLOYD_STEINBERG = 'floyd_steinberg'
