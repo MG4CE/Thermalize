@@ -62,9 +62,10 @@ function initListeners() {
     UI.inputFile.addEventListener('change', handleUpload);
 
     // Settings Toggle
-    document.getElementById('settings-btn').addEventListener('click', () => {
+    document.getElementById('settings-btn').addEventListener('click', async () => {
         openModal('settings');
-        // Pre-fill settings logic could go here
+        // Reload config to ensure settings are up-to-date
+        await loadConfig();
     });
 
     // Editor Tabs
@@ -152,10 +153,12 @@ async function loadConfig() {
             connectionTypeEl.value = config.printer.type;
             // Show/hide Bluetooth controls based on connection type
             const btControls = document.getElementById('bluetooth-controls');
-            if (config.printer.type === 'bluetooth') {
-                btControls.classList.remove('hidden');
-            } else {
-                btControls.classList.add('hidden');
+            if (btControls) {
+                if (config.printer.type === 'bluetooth') {
+                    btControls.classList.remove('hidden');
+                } else {
+                    btControls.classList.add('hidden');
+                }
             }
         }
         
@@ -322,13 +325,25 @@ async function deleteCurrentImage() {
 
 // 4. Settings Logic
 async function handleConnectionSwitch(type) {
-    if (type === 'bluetooth') {
-        document.getElementById('bluetooth-controls').classList.remove('hidden');
-    } else {
-        document.getElementById('bluetooth-controls').classList.add('hidden');
+    const btControls = document.getElementById('bluetooth-controls');
+    if (btControls) {
+        if (type === 'bluetooth') {
+            btControls.classList.remove('hidden');
+        } else {
+            btControls.classList.add('hidden');
+        }
     }
     
-    await callApi('/api/printer/switch', 'POST', { type });
+    const result = await callApi('/api/printer/switch', 'POST', { type });
+    
+    if (result) {
+        // Reload config to update current device display
+        const config = await callApi('/api/config');
+        if (config) {
+            updateBluetoothDeviceDisplay(config);
+        }
+    }
+    
     checkStatus(); // Refresh status immediately
 }
 
@@ -412,9 +427,16 @@ async function reconnectPrinter() {
             }, 2000);
         }
         
-        // Update status display
+        // Update status display and reload config
         checkStatus();
+        
+        // Reload config to update current device display if reconnecting to bluetooth
+        const config = await callApi('/api/config');
+        if (config) {
+            updateBluetoothDeviceDisplay(config);
+        }
     } catch (error) {
+        console.error('Reconnect error:', error);
         btn.textContent = '✗ Error';
         setTimeout(() => {
             btn.textContent = originalText;
@@ -497,7 +519,17 @@ async function unpairBluetooth() {
 }
 
 async function handleProtocolSwitch(e) {
-    await callApi('/api/printer/protocol', 'POST', { protocol: e.target.value });
+    const result = await callApi('/api/printer/protocol', 'POST', { protocol: e.target.value });
+    
+    // Reload config to confirm the change
+    if (result) {
+        const config = await callApi('/api/config');
+        if (config) {
+            console.log('Protocol switched to:', config.printer.protocol);
+        }
+    }
+    
+    checkStatus();
 }
 
 
