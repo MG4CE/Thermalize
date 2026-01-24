@@ -144,6 +144,28 @@ async function loadConfig() {
         UI.previewImage.style.width = `${maxWidth}px`;
     }
     
+    // Update printer settings UI
+    if (config?.printer) {
+        // Set connection type dropdown
+        const connectionTypeEl = document.getElementById('connection-type');
+        if (connectionTypeEl && config.printer.type) {
+            connectionTypeEl.value = config.printer.type;
+            // Show/hide Bluetooth controls based on connection type
+            const btControls = document.getElementById('bluetooth-controls');
+            if (config.printer.type === 'bluetooth') {
+                btControls.classList.remove('hidden');
+            } else {
+                btControls.classList.add('hidden');
+            }
+        }
+        
+        // Set protocol dropdown
+        const protocolEl = document.getElementById('protocol-select');
+        if (protocolEl && config.printer.protocol) {
+            protocolEl.value = config.printer.protocol;
+        }
+    }
+    
     // Update Bluetooth device display
     updateBluetoothDeviceDisplay(config);
 }
