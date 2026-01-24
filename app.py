@@ -1,0 +1,107 @@
+"""
+Main Flask application for Raspberry Pi Thermal Photo Printer.
+"""
+
+import os
+import json
+import logging
+
+from image_handler import ImageHandler
+from printer_handler import PrinterHandler
+from gpio_handler import GPIOHandler
+
+from router import Router
+
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
+
+CONFIG_PATH = 'config.json'
+IMAGES_DB_PATH = 'images_db.json'
+
+images_db = {}
+
+# Load or initialize image database
+if os.path.exists(IMAGES_DB_PATH):
+    with open(IMAGES_DB_PATH, 'r') as f:
+        images_db = json.load(f)
+
+image_handler = ImageHandler(CONFIG_PATH)
+printer_handler = PrinterHandler(CONFIG_PATH)
+
+def button_press_callback(button_number):
+    """
+    Callback function for GPIO button press events.
+    
+    Args:
+        button_number: Button number that was pressed (1-4)
+    """
+    logger.info(f"Button {button_number} press callback triggered")
+    
+    # Load current config to get button assignments
+    with open(CONFIG_PATH, 'r') as f:
+        config = json.load(f)
+    
+    # Get assigned image ID for this button
+    image_id = config['button_assignments'].get(str(button_number))
+    
+    if not image_id:
+        logger.warning(f"Button {button_number} has no image assigned")
+        return
+    
+    if image_id not in images_db:
+        logger.error(f"Image {image_id} not found in database")
+        return
+    
+    # Get processed image path
+    processed_path = image_handler.get_processed_image(image_id)
+    
+    if not processed_path or not os.path.exists(processed_path):
+        logger.error(f"Processed image not found for {image_id}")
+        return
+    
+    # Print the image
+    logger.info(f"Printing image {image_id} from button {button_number}")
+    success = printer_handler.print_image(processed_path)
+    
+    if success:
+        logger.info(f"Successfully printed image {image_id}")
+    else:
+        logger.error(f"Failed to print image {image_id}")
+
+if __name__ == '__main__':
+    try:
+        # Load configuration
+        with open(CONFIG_PATH, 'r') as f:
+            config = json.load(f)
+
+        gpio_handler = GPIOHandler(CONFIG_PATH, print_callback=button_press_callback)
+
+        router = Router(
+            image_handler=image_handler,
+            printer_handler=printer_handler,
+            gpio_handler=gpio_handler,
+            config_path=CONFIG_PATH,
+            image_db=images_db,
+            images_db_path=IMAGES_DB_PATH
+        )
+        
+        host = config['server']['host']
+        port = config['server']['port']
+        debug = config['server']['debug']
+        
+        logger.info(f"Starting server on {host}:{port}")
+        logger.info(f"Recommended image width: {image_handler.get_recommended_width()}px")
+        logger.info(f"Paper size: {image_handler.get_paper_width_mm()}mm")
+        
+        router.app.run(host=host, port=port, debug=debug, use_reloader=False)
+        
+    except KeyboardInterrupt:
+        logger.info("Received keyboard interrupt")
+    finally:
+        gpio_handler.cleanup()
+        logger.info("Shutting down application...")
+        printer_handler.disconnect()
+        logger.info("Cleanup complete")
