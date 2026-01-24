@@ -254,6 +254,7 @@ class PrinterHandler:
                 # Try to auto-detect printer
                 # Common thermal printer IDs
                 common_ids = [
+                    (0x0fe6, 0x811e),  # Gprinter GP-58
                     (0x0416, 0x5011),  # Default common ID
                     (0x04b8, 0x0e15),  # Epson
                     (0x0dd4, 0x0205),  # Generic

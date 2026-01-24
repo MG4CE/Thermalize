@@ -2,8 +2,8 @@
   "printer": {
     "protocol": "escpos",
     "type": "usb",
-    "vendor_id": null,
-    "product_id": null,
+    "vendor_id": 4070,
+    "product_id": 33054,
     "interface": 0,
     "timeout": 0,
     "auto_detect": true,
