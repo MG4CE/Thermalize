@@ -344,14 +344,15 @@ class Router:
 
     def get_config(self):
         """
-        Get current configuration including button assignments.
+        Get current configuration including button assignments and printer settings.
         
         Returns:
             JSON with configuration
         """
         return jsonify({
             'button_assignments': self.config['button_assignments'],
-            'image_settings': self.config['image_settings']
+            'image_settings': self.config['image_settings'],
+            'printer': self.config['printer']
         }), 200
 
 
