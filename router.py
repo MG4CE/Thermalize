@@ -622,6 +622,7 @@ class Router:
             logger.info("API: Bluetooth disconnect request received")
             
             if not self.printer_handler.is_connected:
+                logger.info("No active connection, returning success")
                 return jsonify({
                     'success': True,
                     'message': 'No active connection'
@@ -656,7 +657,8 @@ class Router:
             JSON with unpair status
         """
         try:
-            data = request.get_json() or {}
+            # Handle both JSON and non-JSON requests
+            data = request.get_json(silent=True) or {}
             mac = data.get('mac') or self.config['printer'].get('bluetooth_mac')
             
             if not mac:

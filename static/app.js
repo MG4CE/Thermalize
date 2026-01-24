@@ -449,6 +449,9 @@ async function disconnectBluetooth() {
     const btn = document.getElementById('disconnect-bt-btn');
     const originalText = btn.textContent;
     
+    // Prevent double-clicks
+    if (btn.disabled) return;
+    
     if (!confirm('Disconnect from Bluetooth printer?')) return;
     
     btn.disabled = true;
@@ -485,13 +488,16 @@ async function unpairBluetooth() {
     const btn = document.getElementById('unpair-bt-btn');
     const originalText = btn.textContent;
     
+    // Prevent double-clicks
+    if (btn.disabled) return;
+    
     if (!confirm('This will unpair the device at OS level. Continue?')) return;
     
     btn.disabled = true;
     btn.textContent = 'Unpairing...';
     
     try {
-        const result = await callApi('/api/printer/bluetooth/unpair', 'POST');
+        const result = await callApi('/api/printer/bluetooth/unpair', 'POST', {});
         
         if (result?.success) {
             btn.textContent = '✓ Unpaired';
