@@ -767,13 +767,13 @@ class PrinterHandler:
                 if img.mode != '1':
                     img = img.convert('1')
                 
-                self.printer.text('\n')
+                # self.printer.text('\n')
 
                 # Print image
                 self.printer.image(img)
                 
                 # Feed paper after print
-                self.printer.text('\n\n')
+                # self.printer.text('\n')
                 self.printer.cut()
                 
                 logger.info(f"Successfully printed image: {image_path}")
