@@ -1,4 +1,4 @@
-__pychace__/
+__pycache__/
 app_data/
 config.json
 image_db.json
