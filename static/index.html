@@ -123,6 +123,14 @@
 
                 <div id="bluetooth-controls" class="setting-group hidden">
                     <div class="setting-row">
+                        <div class="setting-label">Current Device</div>
+                        <div id="current-bt-device" style="font-family: monospace; color: #666;">None</div>
+                    </div>
+                    <div class="setting-row" id="bt-disconnect-row" style="display: none;">
+                        <button id="disconnect-bt-btn" class="secondary-btn small-btn">Disconnect</button>
+                        <button id="unpair-bt-btn" class="danger-btn small-btn">Unpair Device</button>
+                    </div>
+                    <div class="setting-row">
                         <button id="scan-bt-btn" class="secondary-btn small-btn">Scan Devices</button>
                         <div class="loader hidden" id="bt-loader"></div>
                     </div>

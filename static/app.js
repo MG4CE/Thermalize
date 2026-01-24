@@ -108,6 +108,8 @@ function initListeners() {
     document.getElementById('reconnect-printer-btn').addEventListener('click', reconnectPrinter);
     document.getElementById('test-print-btn').addEventListener('click', () => callApi('/api/printer/test', 'POST'));
     document.getElementById('scan-bt-btn').addEventListener('click', scanBluetooth);
+    document.getElementById('disconnect-bt-btn').addEventListener('click', disconnectBluetooth);
+    document.getElementById('unpair-bt-btn').addEventListener('click', unpairBluetooth);
 }
 
 /**
@@ -140,6 +142,22 @@ async function loadConfig() {
         maxWidth = config.image_settings.max_width || 640;
         // Apply width to preview image
         UI.previewImage.style.width = `${maxWidth}px`;
+    }
+    
+    // Update Bluetooth device display
+    updateBluetoothDeviceDisplay(config);
+}
+
+function updateBluetoothDeviceDisplay(config) {
+    const currentDeviceEl = document.getElementById('current-bt-device');
+    const disconnectRow = document.getElementById('bt-disconnect-row');
+    
+    if (config?.printer?.bluetooth_mac) {
+        currentDeviceEl.textContent = config.printer.bluetooth_mac;
+        disconnectRow.style.display = 'flex';
+    } else {
+        currentDeviceEl.textContent = 'None';
+        disconnectRow.style.display = 'none';
     }
 }
 
@@ -338,6 +356,10 @@ async function connectBluetooth(mac) {
     
     if (result?.success) {
         list.innerHTML = `<li>✓ Connected to ${mac}</li>`;
+        
+        // Reload config to update current device display
+        const config = await callApi('/api/config');
+        updateBluetoothDeviceDisplay(config);
     } else {
         list.innerHTML = `<li>✗ Failed to connect to ${mac}<br>${result?.error || 'See logs'}</li>`;
     }
@@ -376,6 +398,79 @@ async function reconnectPrinter() {
             btn.textContent = originalText;
             btn.disabled = false;
         }, 2000);
+    }
+}
+
+async function disconnectBluetooth() {
+    const btn = document.getElementById('disconnect-bt-btn');
+    const originalText = btn.textContent;
+    
+    if (!confirm('Disconnect from Bluetooth printer?')) return;
+    
+    btn.disabled = true;
+    btn.textContent = 'Disconnecting...';
+    
+    try {
+        const result = await callApi('/api/printer/bluetooth/disconnect', 'POST');
+        
+        if (result?.success) {
+            btn.textContent = '✓ Disconnected';
+            setTimeout(() => {
+                btn.textContent = originalText;
+                btn.disabled = false;
+            }, 2000);
+        } else {
+            btn.textContent = '✗ Failed';
+            setTimeout(() => {
+                btn.textContent = originalText;
+                btn.disabled = false;
+            }, 2000);
+        }
+        
+        checkStatus();
+    } catch (error) {
+        btn.textContent = '✗ Error';
+        setTimeout(() => {
+            btn.textContent = originalText;
+            btn.disabled = false;
+        }, 2000);
+    }
+}
+
+async function unpairBluetooth() {
+    const btn = document.getElementById('unpair-bt-btn');
+    const originalText = btn.textContent;
+    
+    if (!confirm('This will unpair the device at OS level. Continue?')) return;
+    
+    btn.disabled = true;
+    btn.textContent = 'Unpairing...';
+    
+    try {
+        const result = await callApi('/api/printer/bluetooth/unpair', 'POST');
+        
+        if (result?.success) {
+            btn.textContent = '✓ Unpaired';
+            
+            // Reload config to update UI
+            const config = await callApi('/api/config');
+            updateBluetoothDeviceDisplay(config);
+            
+            setTimeout(() => {
+                btn.textContent = originalText;
+                btn.disabled = false;
+            }, 2000);
+        } else {
+            alert('Failed to unpair: ' + (result?.error || 'Unknown error'));
+            btn.textContent = originalText;
+            btn.disabled = false;
+        }
+        
+        checkStatus();
+    } catch (error) {
+        alert('Error unpairing device: ' + error.message);
+        btn.textContent = originalText;
+        btn.disabled = false;
     }
 }
 

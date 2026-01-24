@@ -67,6 +67,8 @@ class Router:
         self.app.route('/api/printer/protocol', methods=['POST'])(self.switch_printer_protocol)
         self.app.route('/api/printer/bluetooth/scan', methods=['GET'])(self.scan_bluetooth)
         self.app.route('/api/printer/bluetooth/connect', methods=['POST'])(self.connect_bluetooth)
+        self.app.route('/api/printer/bluetooth/disconnect', methods=['POST'])(self.disconnect_bluetooth)
+        self.app.route('/api/printer/bluetooth/unpair', methods=['POST'])(self.unpair_bluetooth)
         self.app.route('/api/printer/switch', methods=['POST'])(self.switch_connection)
         self.app.route('/api/gpio/status', methods=['GET'])(self.get_gpio_status)
         self.app.route('/api/gpio/simulate/<int:button_number>', methods=['POST'])(self.simulate_button)
@@ -605,6 +607,101 @@ class Router:
             return jsonify({
                 'success': False,
                 'error': f'Unexpected error: {str(e)}. Check backend logs.'
+            }), 500
+
+
+    def disconnect_bluetooth(self):
+        """
+        Disconnect from currently connected Bluetooth printer.
+        
+        Returns:
+            JSON with disconnection status
+        """
+        try:
+            logger.info("API: Bluetooth disconnect request received")
+            
+            if not self.printer_handler.is_connected:
+                return jsonify({
+                    'success': True,
+                    'message': 'No active connection'
+                }), 200
+            
+            # Disconnect
+            self.printer_handler.disconnect()
+            
+            logger.info("Bluetooth printer disconnected")
+            return jsonify({
+                'success': True,
+                'message': 'Printer disconnected',
+                'status': self.printer_handler.get_status()
+            }), 200
+            
+        except Exception as e:
+            logger.error(f"Error disconnecting Bluetooth printer: {e}")
+            return jsonify({
+                'success': False,
+                'error': str(e)
+            }), 500
+
+
+    def unpair_bluetooth(self):
+        """
+        Unpair a Bluetooth device at OS level.
+        
+        Body:
+            - mac: Bluetooth MAC address to unpair (optional, uses config if not provided)
+        
+        Returns:
+            JSON with unpair status
+        """
+        try:
+            data = request.get_json() or {}
+            mac = data.get('mac') or self.config['printer'].get('bluetooth_mac')
+            
+            if not mac:
+                return jsonify({
+                    'success': False,
+                    'error': 'No MAC address provided or configured'
+                }), 400
+            
+            logger.info(f"API: Bluetooth unpair request for {mac}")
+            
+            # Disconnect first if connected
+            if self.printer_handler.is_connected and self.printer_handler.connection_type == 'bluetooth':
+                self.printer_handler.disconnect()
+            
+            # Unpair at OS level using bluetoothctl
+            import subprocess
+            result = subprocess.run(
+                ['bluetoothctl', 'remove', mac],
+                capture_output=True,
+                text=True,
+                timeout=10
+            )
+            
+            if result.returncode == 0 or 'Device has been removed' in result.stdout:
+                # Clear from config
+                self.config['printer']['bluetooth_mac'] = None
+                self.save_config()
+                
+                logger.info(f"Successfully unpaired device {mac}")
+                return jsonify({
+                    'success': True,
+                    'message': f'Device {mac} unpaired successfully'
+                }), 200
+            else:
+                logger.warning(f"Failed to unpair device {mac}: {result.stderr}")
+                return jsonify({
+                    'success': False,
+                    'error': f'Failed to unpair: {result.stderr}',
+                    'stdout': result.stdout
+                }), 500
+            
+        except Exception as e:
+            logger.error(f"Error unpairing Bluetooth device: {e}")
+            return jsonify({
+                'success': False,
+                'error': str(e)
             }), 500
 
 
