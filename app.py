@@ -26,7 +26,22 @@ images_db = {}
 # Load or initialize image database
 if os.path.exists(IMAGES_DB_PATH):
     with open(IMAGES_DB_PATH, 'r') as f:
-        images_db = json.load(f)
+        loaded_db = json.load(f)
+        # Ensure it's a dictionary
+        if isinstance(loaded_db, dict):
+            images_db = loaded_db
+        elif isinstance(loaded_db, list):
+            logger.warning("images_db.json contains a list instead of dict, converting...")
+            # Convert list to dict using 'id' as key
+            for item in loaded_db:
+                if isinstance(item, dict) and 'id' in item:
+                    images_db[item['id']] = item
+            # Save the corrected database
+            with open(IMAGES_DB_PATH, 'w') as out_f:
+                json.dump(images_db, out_f, indent=2)
+        else:
+            logger.error(f"images_db.json has unexpected type: {type(loaded_db)}, using empty dict")
+            images_db = {}
 
 image_handler = ImageHandler(CONFIG_PATH)
 printer_handler = PrinterHandler(CONFIG_PATH)

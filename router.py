@@ -18,7 +18,21 @@ class Router:
         self.printer_handler = printer_handler
         self.gpio_handler = gpio_handler
         self.config_path = config_path
-        self.images_db = image_db
+        
+        # Ensure images_db is always a dict
+        if isinstance(image_db, dict):
+            self.images_db = image_db
+        elif isinstance(image_db, list):
+            logger.warning("image_db passed as list, converting to dict")
+            # If it's a list, try to convert it to a dict using 'id' as key
+            self.images_db = {}
+            for item in image_db:
+                if isinstance(item, dict) and 'id' in item:
+                    self.images_db[item['id']] = item
+        else:
+            logger.error(f"image_db has unexpected type: {type(image_db)}, initializing as empty dict")
+            self.images_db = {}
+        
         self.images_db_path = images_db_path
 
         with open(self.config_path, 'r') as f:
@@ -107,6 +121,19 @@ class Router:
             # Save uploaded image
             metadata = self.image_handler.save_uploaded_image(file)
             
+            # Ensure images_db is a dict (defensive check)
+            if not isinstance(self.images_db, dict):
+                logger.error(f"images_db is {type(self.images_db)}, converting to dict")
+                if isinstance(self.images_db, list):
+                    # Convert list to dict
+                    new_db = {}
+                    for item in self.images_db:
+                        if isinstance(item, dict) and 'id' in item:
+                            new_db[item['id']] = item
+                    self.images_db = new_db
+                else:
+                    self.images_db = {}
+            
             # Store in database
             self.images_db[metadata['id']] = metadata
             self.save_images_db(self.images_db)
@@ -139,7 +166,16 @@ class Router:
         Returns:
             JSON array of image metadata
         """
-        return jsonify(list(self.images_db.values())), 200
+        # Handle case where images_db might be a list instead of dict
+        if isinstance(self.images_db, dict):
+            return jsonify(list(self.images_db.values())), 200
+        elif isinstance(self.images_db, list):
+            logger.warning("images_db is a list instead of dict, converting...")
+            # Convert list to dict if it's a list (shouldn't happen but defensive)
+            return jsonify(self.images_db), 200
+        else:
+            logger.error(f"images_db has unexpected type: {type(self.images_db)}")
+            return jsonify([]), 200
 
 
     def get_image(self, image_id):
