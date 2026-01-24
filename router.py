@@ -11,10 +11,6 @@ logger = logging.getLogger(__name__)
 
 class Router:
 
-    # NOTE: this is probably not the best way to do this...
-    app = Flask(__name__, static_folder='static')
-    CORS(app)
-
     def __init__(self, image_handler: ImageHandler, printer_handler: PrinterHandler, gpio_handler: GPIOHandler,
                  config_path: str, image_db: dict, images_db_path: str):
         """Initialize Flask app and routes."""
@@ -27,6 +23,38 @@ class Router:
 
         with open(self.config_path, 'r') as f:
             self.config = json.load(f)
+        
+        # Create Flask app instance
+        self.app = Flask(__name__, static_folder='static')
+        CORS(self.app)
+        
+        # Register routes with decorators
+        self._register_routes()
+    
+    def _register_routes(self):
+        """Register all Flask routes with decorators."""
+        # Main routes
+        self.app.route('/')(self.index)
+        self.app.route('/app.js')(self.serve_app_js)
+        self.app.route('/style.css')(self.serve_style_css)
+        self.app.route('/api/upload', methods=['POST'])(self.upload_image)
+        self.app.route('/api/images', methods=['GET'])(self.list_images)
+        self.app.route('/api/images/<image_id>', methods=['GET'])(self.get_image)
+        self.app.route('/api/images/<image_id>', methods=['DELETE'])(self.delete_image)
+        self.app.route('/api/images/<image_id>/process', methods=['POST'])(self.process_image)
+        self.app.route('/api/images/<image_id>/preview', methods=['GET'])(self.get_preview)
+        self.app.route('/api/images/<image_id>/print', methods=['POST'])(self.print_image)
+        self.app.route('/api/config', methods=['GET'])(self.get_config)
+        self.app.route('/api/config', methods=['POST'])(self.update_config)
+        self.app.route('/api/printer/status', methods=['GET'])(self.get_printer_status)
+        self.app.route('/api/printer/test', methods=['POST'])(self.test_printer)
+        self.app.route('/api/printer/protocol', methods=['GET'])(self.get_printer_protocol)
+        self.app.route('/api/printer/protocol', methods=['POST'])(self.switch_printer_protocol)
+        self.app.route('/api/printer/bluetooth/scan', methods=['GET'])(self.scan_bluetooth)
+        self.app.route('/api/printer/bluetooth/connect', methods=['POST'])(self.connect_bluetooth)
+        self.app.route('/api/printer/switch', methods=['POST'])(self.switch_connection)
+        self.app.route('/api/gpio/status', methods=['GET'])(self.get_gpio_status)
+        self.app.route('/api/gpio/simulate/<int:button_number>', methods=['POST'])(self.simulate_button)
 
     # NOTE: this way of storing image data is really not ideal for scalability
     def save_images_db(self, db):
@@ -44,13 +72,19 @@ class Router:
         return '.' in filename and filename.rsplit('.', 1)[1].lower() in self.config['global_settings']['allowed_extensions']
 
 
-    @app.route('/')
     def index(self):
         """Serve main web interface."""
         return send_from_directory('static', 'index.html')
 
+    def serve_app_js(self):
+        """Serve app.js from static folder."""
+        return send_from_directory('static', 'app.js')
 
-    @app.route('/api/upload', methods=['POST'])
+    def serve_style_css(self):
+        """Serve style.css from static folder."""
+        return send_from_directory('static', 'style.css')
+
+    
     def upload_image(self):
         """
         Upload a new image.
@@ -98,7 +132,6 @@ class Router:
             return jsonify({'error': str(e)}), 500
 
 
-    @app.route('/api/images', methods=['GET'])
     def list_images(self):
         """
         Get list of all uploaded images.
@@ -109,7 +142,6 @@ class Router:
         return jsonify(list(self.images_db.values())), 200
 
 
-    @app.route('/api/images/<image_id>', methods=['GET'])
     def get_image(self, image_id):
         """
         Get metadata for specific image.
@@ -126,7 +158,6 @@ class Router:
         return jsonify(self.images_db[image_id]), 200
 
 
-    @app.route('/api/images/<image_id>', methods=['DELETE'])
     def delete_image(self, image_id):
         """
         Delete an image.
@@ -162,7 +193,6 @@ class Router:
             return jsonify({'error': str(e)}), 500
 
 
-    @app.route('/api/images/<image_id>/process', methods=['POST'])
     def process_image(self, image_id):
         """
         Process image with specific settings.
@@ -217,7 +247,7 @@ class Router:
             return jsonify({'error': str(e)}), 500
 
 
-    @app.route('/api/images/<image_id>/preview', methods=['GET'])
+
     def get_preview(self, image_id):
         """
         Get processed preview image.
@@ -241,7 +271,6 @@ class Router:
             return jsonify({'error': str(e)}), 500
 
 
-    @app.route('/api/images/<image_id>/print', methods=['POST'])
     def print_image(self, image_id):
         """
         Test print an image.
@@ -274,7 +303,6 @@ class Router:
             return jsonify({'error': str(e)}), 500
 
 
-    @app.route('/api/config', methods=['GET'])
     def get_config(self):
         """
         Get current configuration including button assignments.
@@ -288,7 +316,6 @@ class Router:
         }), 200
 
 
-    @app.route('/api/config', methods=['POST'])
     def update_config(self):
         """
         Update configuration (button assignments).
@@ -318,7 +345,6 @@ class Router:
             return jsonify({'error': str(e)}), 500
 
 
-    @app.route('/api/printer/status', methods=['GET'])
     def get_printer_status(self):
         """
         Get printer connection status.
@@ -328,8 +354,7 @@ class Router:
         """
         return jsonify(self.printer_handler.get_status()), 200
 
-
-    @app.route('/api/printer/test', methods=['POST'])
+    
     def test_printer(self):
         """
         Print a test pattern.
@@ -350,7 +375,6 @@ class Router:
             return jsonify({'error': str(e)}), 500
 
 
-    @app.route('/api/printer/protocol', methods=['GET'])
     def get_printer_protocol(self):
         """
         Get current printer protocol information.
@@ -361,12 +385,10 @@ class Router:
         status = self.printer_handler.get_status()
         return jsonify({
             'protocol': status.get('protocol', 'escpos'),
-            'escpos_available': status.get('escpos_available', False),
-            'startsp_available': status.get('startsp_available', False)
+            'simulation_mode': status.get('simulation_mode', False)
         }), 200
 
 
-    @app.route('/api/printer/protocol', methods=['POST'])
     def switch_printer_protocol(self):
         """
         Switch printer protocol (ESC/POS or StarTSP).
@@ -403,7 +425,6 @@ class Router:
             return jsonify({'error': str(e)}), 500
 
 
-    @app.route('/api/printer/bluetooth/scan', methods=['GET'])
     def scan_bluetooth(self):
         """
         Scan for nearby Bluetooth devices.
@@ -433,7 +454,6 @@ class Router:
             return jsonify({'error': str(e)}), 500
 
 
-    @app.route('/api/printer/bluetooth/connect', methods=['POST'])
     def connect_bluetooth(self):
         """
         Connect to Bluetooth printer by MAC address.
@@ -503,7 +523,6 @@ class Router:
             }), 500
 
 
-    @app.route('/api/printer/switch', methods=['POST'])
     def switch_connection(self):
         """
         Switch printer connection type.
@@ -549,7 +568,6 @@ class Router:
             return jsonify({'error': str(e)}), 500
 
 
-    @app.route('/api/gpio/status', methods=['GET'])
     def get_gpio_status(self):
         """
         Get GPIO button status.
@@ -560,7 +578,6 @@ class Router:
         return jsonify(self.gpio_handler.get_button_status()), 200
 
 
-    @app.route('/api/gpio/simulate/<int:button_number>', methods=['POST'])
     def simulate_button(self, button_number):
         """
         Simulate a button press (for testing).
