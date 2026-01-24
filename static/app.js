@@ -299,18 +299,27 @@ async function scanBluetooth() {
     list.innerHTML = '';
     loader.classList.remove('hidden');
     
-    const devices = await callApi('/api/printer/bluetooth/scan?timeout=5');
-    loader.classList.add('hidden');
-    
-    if (devices && devices.length) {
-        devices.forEach(d => {
-            const li = document.createElement('li');
-            li.textContent = `${d.name || 'Unknown'} (${d.address})`;
-            li.onclick = () => connectBluetooth(d.address);
-            list.appendChild(li);
-        });
-    } else {
-        list.innerHTML = '<li>No devices found</li>';
+    try {
+        const response = await callApi('/api/printer/bluetooth/scan?timeout=5');
+        loader.classList.add('hidden');
+        
+        // Backend returns {success, devices: [], count}
+        const devices = response?.devices || [];
+        
+        if (devices && devices.length > 0) {
+            devices.forEach(d => {
+                const li = document.createElement('li');
+                li.textContent = `${d.name || 'Unknown'} (${d.address})`;
+                li.onclick = () => connectBluetooth(d.address);
+                list.appendChild(li);
+            });
+        } else {
+            list.innerHTML = '<li>No devices found</li>';
+        }
+    } catch (error) {
+        loader.classList.add('hidden');
+        list.innerHTML = `<li>Error: ${error.message || 'Scan failed'}</li>`;
+        console.error('Bluetooth scan error:', error);
     }
 }
 
