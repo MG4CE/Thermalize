@@ -261,9 +261,14 @@ class PrinterHandler:
                     (0x1fc9, 0x2016),  # Generic
                 ]
                 
+                logger.info(f"Auto-detecting USB printer, trying {len(common_ids)} known IDs...")
+                
                 for vid, pid in common_ids:
                     try:
+                        logger.debug(f"Trying VID: {hex(vid)}, PID: {hex(pid)}")
                         test_printer = Usb(vid, pid)
+                        logger.debug(f"USB device opened, verifying connection...")
+                        
                         if self._verify_connection(test_printer):
                             self.printer = test_printer
                             self.is_connected = True
@@ -271,17 +276,26 @@ class PrinterHandler:
                             logger.info(f"Printer connected (VID: {hex(vid)}, PID: {hex(pid)})")
                             return True
                         else:
+                            logger.debug(f"Verification failed for {hex(vid)}:{hex(pid)}")
                             test_printer.close()
-                    except:
+                    except Exception as e:
+                        logger.debug(f"Failed to connect to {hex(vid)}:{hex(pid)} - {type(e).__name__}: {e}")
                         continue
+                
+                logger.warning(f"None of the {len(common_ids)} common printer IDs matched")
             else:
                 # Use configured vendor/product IDs
                 vid = printer_config.get('vendor_id')
                 pid = printer_config.get('product_id')
                 
+                logger.info(f"Using configured VID: {hex(vid) if vid else 'None'}, PID: {hex(pid) if pid else 'None'}")
+                
                 if vid and pid:
                     try:
+                        logger.debug(f"Opening USB device {hex(vid)}:{hex(pid)}")
                         test_printer = Usb(vid, pid)
+                        logger.debug(f"USB device opened, verifying connection...")
+                        
                         if self._verify_connection(test_printer):
                             self.printer = test_printer
                             self.is_connected = True
