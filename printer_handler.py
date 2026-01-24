@@ -28,7 +28,7 @@ except ImportError:
     STARTSP_AVAILABLE = False
 
 try:
-    import bluetooth
+    import bluetooth # type: ignore
     BLUETOOTH_AVAILABLE = True
 except ImportError:
     BLUETOOTH_AVAILABLE = False

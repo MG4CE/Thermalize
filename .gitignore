@@ -5,3 +5,5 @@ image_db.json
 bluetooth_device_db.json
 venv/
 images_db.json
+uploads/
+processed/
