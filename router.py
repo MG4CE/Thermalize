@@ -683,11 +683,18 @@ class Router:
             )
             
             if result.returncode == 0 or 'Device has been removed' in result.stdout:
-                # Clear from config
+                # Clear all Bluetooth config
                 self.config['printer']['bluetooth_mac'] = None
+                self.config['printer']['bluetooth_port'] = None
+                # Reset to USB if Bluetooth was selected
+                if self.config['printer']['type'] == 'bluetooth':
+                    self.config['printer']['type'] = 'usb'
                 self.save_config()
                 
-                logger.info(f"Successfully unpaired device {mac}")
+                # Update handler config
+                self.printer_handler.config = self.config
+                
+                logger.info(f"Successfully unpaired device {mac} and reset config")
                 return jsonify({
                     'success': True,
                     'message': f'Device {mac} unpaired successfully'
