@@ -61,6 +61,7 @@ class Router:
         self.app.route('/api/config', methods=['GET'])(self.get_config)
         self.app.route('/api/config', methods=['POST'])(self.update_config)
         self.app.route('/api/printer/status', methods=['GET'])(self.get_printer_status)
+        self.app.route('/api/printer/reconnect', methods=['POST'])(self.reconnect_printer)
         self.app.route('/api/printer/test', methods=['POST'])(self.test_printer)
         self.app.route('/api/printer/protocol', methods=['GET'])(self.get_printer_protocol)
         self.app.route('/api/printer/protocol', methods=['POST'])(self.switch_printer_protocol)
@@ -389,6 +390,52 @@ class Router:
             JSON with printer status
         """
         return jsonify(self.printer_handler.get_status()), 200
+
+
+    def reconnect_printer(self):
+        """
+        Attempt to reconnect to the printer using current configuration.
+        
+        Returns:
+            JSON with reconnection result and status
+        """
+        try:
+            logger.info("API: Reconnect request received")
+            
+            # Disconnect current connection if any
+            if self.printer_handler.is_connected:
+                logger.info("Disconnecting existing connection...")
+                self.printer_handler.disconnect()
+            
+            # Attempt reconnection
+            logger.info("Attempting to reconnect...")
+            success = self.printer_handler.connect()
+            
+            # Update simulation mode based on connection result
+            if success:
+                self.printer_handler.simulation_mode = False
+                logger.info("Reconnection successful")
+                return jsonify({
+                    'success': True,
+                    'message': 'Printer reconnected successfully',
+                    'status': self.printer_handler.get_status()
+                }), 200
+            else:
+                self.printer_handler.simulation_mode = True
+                logger.warning("Reconnection failed, remaining in simulation mode")
+                return jsonify({
+                    'success': False,
+                    'message': 'Failed to connect to printer. Check logs for details.',
+                    'status': self.printer_handler.get_status()
+                }), 200
+                
+        except Exception as e:
+            logger.error(f"Error during reconnection: {e}")
+            return jsonify({
+                'success': False,
+                'error': str(e),
+                'status': self.printer_handler.get_status()
+            }), 500
 
     
     def test_printer(self):

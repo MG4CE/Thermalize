@@ -1,6 +1,6 @@
 {
   "printer": {
-    "protocol": "startsp",
+    "protocol": "escpos",
     "type": "usb",
     "vendor_id": null,
     "product_id": null,

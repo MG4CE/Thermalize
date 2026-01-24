@@ -105,6 +105,7 @@ function initListeners() {
     // Settings Actions
     document.getElementById('connection-type').addEventListener('change', (e) => handleConnectionSwitch(e.target.value));
     document.getElementById('protocol-select').addEventListener('change', handleProtocolSwitch);
+    document.getElementById('reconnect-printer-btn').addEventListener('click', reconnectPrinter);
     document.getElementById('test-print-btn').addEventListener('click', () => callApi('/api/printer/test', 'POST'));
     document.getElementById('scan-bt-btn').addEventListener('click', scanBluetooth);
 }
@@ -320,6 +321,42 @@ async function connectBluetooth(mac) {
     await callApi('/api/printer/bluetooth/connect', 'POST', { mac });
     checkStatus();
     list.innerHTML = '<li>Connection attempt finished. Check status.</li>';
+}
+
+async function reconnectPrinter() {
+    const btn = document.getElementById('reconnect-printer-btn');
+    const originalText = btn.textContent;
+    
+    // Show loading state
+    btn.disabled = true;
+    btn.textContent = 'Reconnecting...';
+    
+    try {
+        const result = await callApi('/api/printer/reconnect', 'POST');
+        
+        if (result && result.success) {
+            btn.textContent = '✓ Connected';
+            setTimeout(() => {
+                btn.textContent = originalText;
+                btn.disabled = false;
+            }, 2000);
+        } else {
+            btn.textContent = '✗ Failed';
+            setTimeout(() => {
+                btn.textContent = originalText;
+                btn.disabled = false;
+            }, 2000);
+        }
+        
+        // Update status display
+        checkStatus();
+    } catch (error) {
+        btn.textContent = '✗ Error';
+        setTimeout(() => {
+            btn.textContent = originalText;
+            btn.disabled = false;
+        }, 2000);
+    }
 }
 
 async function handleProtocolSwitch(e) {

@@ -60,7 +60,12 @@ class PrinterHandler:
         self.protocol = self.config['printer'].get('protocol', 'escpos')
         self.simulation_mode = False
         
-        logger.info(f"Selected protocol: {self.protocol}")
+        logger.info("="*60)
+        logger.info("PrinterHandler Initialization")
+        logger.info(f"Protocol: {self.protocol}")
+        logger.info(f"Connection type: {self.config['printer'].get('type', 'usb')}")
+        logger.info(f"Bluetooth MAC: {self.config['printer'].get('bluetooth_mac', 'Not configured')}")
+        logger.info("="*60)
         
         # Attempt to connect to printer
         logger.info("Attempting to connect to printer...")
@@ -68,7 +73,13 @@ class PrinterHandler:
         logger.info(f"Connection attempt result: {result}, is_connected = {self.is_connected}")
         if not result:
             self.simulation_mode = True
-            logger.info("Running in simulation mode (no printer connected)")
+            logger.warning("*" * 60)
+            logger.warning("RUNNING IN SIMULATION MODE (NO PRINTER CONNECTED)")
+            logger.warning("*" * 60)
+        else:
+            logger.info("*" * 60)
+            logger.info(f"PRINTER CONNECTED SUCCESSFULLY via {self.connection_type}")
+            logger.info("*" * 60)
 
 
     def _save_config(self):
@@ -223,7 +234,12 @@ class PrinterHandler:
         # USB only supported for ESC/POS
         if self.protocol == 'startsp':
             # TODO: implement StarTSP USB connection and test it...
-            logger.warning("USB connection not supported for StarTSP protocol")
+            logger.error("*" * 60)
+            logger.error("USB CONNECTION NOT SUPPORTED FOR STARTSP PROTOCOL")
+            logger.error("Please either:")
+            logger.error("  1. Switch to 'bluetooth' connection type in config.json, OR")
+            logger.error("  2. Switch to 'escpos' protocol in config.json")
+            logger.error("*" * 60)
             return False
         
         if not ESCPOS_AVAILABLE:
@@ -302,7 +318,11 @@ class PrinterHandler:
             # Get MAC from parameter or config
             mac = mac_address or self.config['printer'].get('bluetooth_mac')
             if not mac:
-                logger.error("No Bluetooth MAC address configured")
+                logger.error("*" * 60)
+                logger.error("NO BLUETOOTH MAC ADDRESS CONFIGURED")
+                logger.error("Please set 'bluetooth_mac' in config.json")
+                logger.error("Example: \"bluetooth_mac\": \"00:11:22:33:44:55\"")
+                logger.error("*" * 60)
                 return False
             
             # Get port from config if not specified
