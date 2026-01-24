@@ -1,6 +1,6 @@
 {
   "printer": {
-    "protocol": "escpos",
+    "protocol": "startsp",
     "type": "usb",
     "vendor_id": null,
     "product_id": null,
@@ -17,7 +17,7 @@
       17,
       27,
       22,
-      23    
+      23
     ],
     "bounce_time": 250,
     "pull_up_down": "pull_up"
@@ -31,9 +31,15 @@
   "image_settings": {
     "max_width": 640,
     "paper_width_mm": 83
-   },
+  },
   "global_settings": {
-    "allowed_extensions": ["png", "jpg", "jpeg", "gif", "bmp"]
+    "allowed_extensions": [
+      "png",
+      "jpg",
+      "jpeg",
+      "gif",
+      "bmp"
+    ]
   },
   "server": {
     "host": "0.0.0.0",
