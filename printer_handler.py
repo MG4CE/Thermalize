@@ -276,8 +276,9 @@ class PrinterHandler:
                 for vid, pid in common_ids:
                     try:
                         logger.debug(f"Trying VID: {hex(vid)}, PID: {hex(pid)}")
-                        test_printer = Usb(vid, pid)
-                        logger.debug(f"USB device opened, verifying connection...")
+                        # Try to open with auto-detected endpoints first
+                        test_printer = Usb(vid, pid, in_ep=0x82, out_ep=0x03)
+                        logger.debug(f"USB device opened with endpoints IN=0x82, OUT=0x03, verifying connection...")
                         
                         if self._verify_connection(test_printer):
                             self.printer = test_printer
@@ -289,8 +290,24 @@ class PrinterHandler:
                             logger.debug(f"Verification failed for {hex(vid)}:{hex(pid)}")
                             test_printer.close()
                     except Exception as e:
-                        logger.debug(f"Failed to connect to {hex(vid)}:{hex(pid)} - {type(e).__name__}: {e}")
-                        continue
+                        # If specific endpoints fail, try default (auto-detect)
+                        logger.debug(f"Endpoints 0x82/0x03 failed, trying auto-detect: {e}")
+                        try:
+                            test_printer = Usb(vid, pid)
+                            logger.debug(f"USB device opened with auto-detect, verifying connection...")
+                            
+                            if self._verify_connection(test_printer):
+                                self.printer = test_printer
+                                self.is_connected = True
+                                self.connection_type = 'usb'
+                                logger.info(f"Printer connected (VID: {hex(vid)}, PID: {hex(pid)})")
+                                return True
+                            else:
+                                logger.debug(f"Verification failed for {hex(vid)}:{hex(pid)}")
+                                test_printer.close()
+                        except Exception as e2:
+                            logger.debug(f"Failed to connect to {hex(vid)}:{hex(pid)} - {type(e2).__name__}: {e2}")
+                            continue
                 
                 logger.warning(f"None of the {len(common_ids)} common printer IDs matched")
             else:
@@ -302,8 +319,9 @@ class PrinterHandler:
                 
                 if vid and pid:
                     try:
-                        logger.debug(f"Opening USB device {hex(vid)}:{hex(pid)}")
-                        test_printer = Usb(vid, pid)
+                        logger.debug(f"Opening USB device {hex(vid)}:{hex(pid)} with endpoints IN=0x82, OUT=0x03")
+                        # Try with specific endpoints first
+                        test_printer = Usb(vid, pid, in_ep=0x82, out_ep=0x03)
                         logger.debug(f"USB device opened, verifying connection...")
                         
                         if self._verify_connection(test_printer):
@@ -314,8 +332,21 @@ class PrinterHandler:
                             return True
                         else:
                             test_printer.close()
-                    except:
-                        pass
+                    except Exception as e:
+                        logger.debug(f"Specific endpoints failed, trying auto-detect: {e}")
+                        try:
+                            # Fallback to auto-detect
+                            test_printer = Usb(vid, pid)
+                            if self._verify_connection(test_printer):
+                                self.printer = test_printer
+                                self.is_connected = True
+                                self.connection_type = 'usb'
+                                logger.info(f"Printer connected (VID: {hex(vid)}, PID: {hex(pid)})")
+                                return True
+                            else:
+                                test_printer.close()
+                        except:
+                            pass
             
             logger.warning("Could not connect to thermal printer")
             self.is_connected = False

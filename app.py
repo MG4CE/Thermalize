@@ -43,8 +43,9 @@ if os.path.exists(IMAGES_DB_PATH):
             logger.error(f"images_db.json has unexpected type: {type(loaded_db)}, using empty dict")
             images_db = {}
 
-image_handler = ImageHandler(CONFIG_PATH)
-printer_handler = PrinterHandler(CONFIG_PATH)
+# Initialize handlers inside main block to ensure proper logging
+image_handler = None
+printer_handler = None
 
 def button_press_callback(button_number):
     """
@@ -88,6 +89,11 @@ def button_press_callback(button_number):
 
 if __name__ == '__main__':
     try:
+        # Initialize handlers
+        logger.info("Initializing handlers...")
+        image_handler = ImageHandler(CONFIG_PATH)
+        printer_handler = PrinterHandler(CONFIG_PATH)
+        
         # Load configuration
         with open(CONFIG_PATH, 'r') as f:
             config = json.load(f)
