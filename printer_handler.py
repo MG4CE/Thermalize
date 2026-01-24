@@ -393,6 +393,27 @@ class PrinterHandler:
             # Check if device is paired at OS level, attempt pairing if not
             if not self.check_bluetooth_pairing(mac):
                 logger.warning(f"Device {mac} not paired. Attempting automatic pairing...")
+                
+                # Run a quick scan to make the device available for pairing
+                logger.info("Running Bluetooth scan to discover device...")
+                try:
+                    scan_process = subprocess.Popen(
+                        ['bluetoothctl', 'scan', 'on'],
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.PIPE,
+                        text=True
+                    )
+                    # Let it scan for 3 seconds
+                    time.sleep(3)
+                    scan_process.terminate()
+                    try:
+                        scan_process.wait(timeout=2)
+                    except subprocess.TimeoutExpired:
+                        scan_process.kill()
+                    logger.info("Bluetooth scan completed")
+                except Exception as e:
+                    logger.warning(f"Scan failed but continuing: {e}")
+                
                 if not self.pair_bluetooth_device(mac):
                     logger.error(f"Failed to pair device {mac}. Cannot proceed with connection.")
                     return False
