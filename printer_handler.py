@@ -15,14 +15,14 @@ from typing import Optional, List, Dict
 from PIL import Image, ImageDraw, ImageFont # type: ignore
 
 try:
-    from escpos.printer import Usb, Serial as EscposSerial
-    from escpos import exceptions as escpos_exceptions
+    from escpos.printer import Usb, Serial as EscposSerial # type: ignore
+    from escpos import exceptions as escpos_exceptions # type: ignore
     ESCPOS_AVAILABLE = True
 except ImportError:
     ESCPOS_AVAILABLE = False
 
 try:
-    import StarTSPImage
+    import StarTSPImage # type: ignore
     STARTSP_AVAILABLE = True
 except ImportError:
     STARTSP_AVAILABLE = False
