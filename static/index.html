@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Thermalize</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="icon" href="data:;base64,iVBORw0KGgo=">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Header -->
+        <header>
+            <div class="logo">Thermalize</div>
+            <div class="status-bar" id="status-bar">
+                <span class="status-indicator" id="status-dot"></span>
+                <span id="printer-status-text">Connecting...</span>
+                <button id="settings-btn" class="icon-btn" aria-label="Settings">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="3"></circle>
+                        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+                    </svg>
+                </button>
+            </div>
+        </header>
+
+        <!-- Upload Section -->
+        <section class="upload-section">
+            <input type="file" id="file-input" accept="image/*" hidden>
+            <button id="upload-btn" class="action-btn">
+                <span class="plus-icon">+</span> Upload Image
+            </button>
+        </section>
+
+        <!-- Gallery -->
+        <main class="gallery" id="gallery">
+            <!-- Images will be injected here -->
+        </main>
+    </div>
+
+    <!-- Image Editor Modal -->
+    <div id="editor-modal" class="modal hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Edit Image</h3>
+                <button class="close-btn" data-target="editor-modal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="preview-container">
+                    <div class="receipt-paper">
+                        <div class="receipt-texture"></div>
+                        <img id="preview-image" src="" alt="Preview">
+                    </div>
+                </div>
+                
+                <div class="editor-tabs">
+                    <button class="tab-btn active" data-tab="adjust">Adjust</button>
+                    <button class="tab-btn" data-tab="settings">Settings</button>
+                </div>
+
+                <div class="controls-container">
+                    <!-- Adjustment Controls -->
+                    <div class="tab-content active" id="adjust-tab">
+                         <div class="control-group">
+                            <label>X Offset <span id="x-offset-val">0</span></label>
+                            <input type="range" id="x-offset" min="-100" max="100" value="0">
+                        </div>
+                        <div class="control-group">
+                            <label>Y Offset <span id="y-offset-val">0</span></label>
+                            <input type="range" id="y-offset" min="-100" max="100" value="0">
+                        </div>
+                    </div>
+
+                    <!-- Processing Settings -->
+                    <div class="tab-content" id="settings-tab">
+                        <div class="control-group">
+                            <label>Dithering Method</label>
+                            <select id="dither-select">
+                                <option value="floyd_steinberg">Floyd Steinberg (Default)</option>
+                                <option value="atkinson">Atkinson (Lighter)</option>
+                                <option value="ordered">Ordered (Bayer Matrix)</option>
+                                <option value="clustered_dot">Clustered Dot (Halftone)</option>
+                                <option value="threshold">Threshold (High Contrast)</option>
+                                <option value="none">None (Simple B&W)</option>
+                            </select>
+                        </div>
+                        <div class="checkbox-group">
+                            <label>
+                                <input type="checkbox" id="autofit-check" checked> 
+                                Auto Fit to Width
+                            </label>
+                            <label>
+                                <input type="checkbox" id="raw-mode-check"> 
+                                Raw Mode (Debug)
+                            </label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button id="delete-btn" class="danger-btn">Delete</button>
+                <button id="print-btn" class="primary-btn">PRINT</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Settings Modal -->
+    <div id="settings-modal" class="modal hidden">
+        <div class="modal-content">
+             <div class="modal-header">
+                <h3>Printer Configuration</h3>
+                <button class="close-btn" data-target="settings-modal">&times;</button>
+            </div>
+            <div class="modal-body no-padding">
+                <div class="setting-row">
+                    <div class="setting-label">Connection Type</div>
+                    <select id="connection-type">
+                        <option value="usb">USB</option>
+                        <option value="bluetooth">Bluetooth</option>
+                        <option value="auto">Auto</option>
+                    </select>
+                </div>
+
+                <div id="bluetooth-controls" class="setting-group hidden">
+                    <div class="setting-row">
+                        <button id="scan-bt-btn" class="secondary-btn small-btn">Scan Devices</button>
+                        <div class="loader hidden" id="bt-loader"></div>
+                    </div>
+                    <ul id="bt-device-list" class="device-list"></ul>
+                </div>
+
+                <div class="setting-row">
+                    <div class="setting-label">Protocol</div>
+                    <select id="protocol-select">
+                        <option value="escpos">ESC/POS</option>
+                        <option value="startsp">Star TSP</option>
+                    </select>
+                </div>
+
+                <div class="setting-group">
+                    <h4>Actions</h4>
+                    <div class="button-grid">
+                        <button id="test-print-btn" class="secondary-btn">Test Print</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
