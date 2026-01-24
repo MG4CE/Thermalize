@@ -306,11 +306,15 @@ async function scanBluetooth() {
         // Backend returns {success, devices: [], count}
         const devices = response?.devices || [];
         
+        console.log('Bluetooth scan found devices:', devices);
+        
         if (devices && devices.length > 0) {
             devices.forEach(d => {
                 const li = document.createElement('li');
-                li.textContent = `${d.name || 'Unknown'} (${d.address})`;
-                li.onclick = () => connectBluetooth(d.address);
+                // Backend returns 'mac' not 'address'
+                const macAddr = d.mac || d.address;
+                li.textContent = `${d.name || 'Unknown'} (${macAddr})`;
+                li.onclick = () => connectBluetooth(macAddr);
                 list.appendChild(li);
             });
         } else {
@@ -325,11 +329,18 @@ async function scanBluetooth() {
 
 async function connectBluetooth(mac) {
     const list = document.getElementById('bt-device-list');
+    console.log('Attempting to connect to Bluetooth MAC:', mac);
     list.innerHTML = `<li>Connecting to ${mac}...</li>`;
     
-    await callApi('/api/printer/bluetooth/connect', 'POST', { mac });
+    const result = await callApi('/api/printer/bluetooth/connect', 'POST', { mac });
+    console.log('Bluetooth connection result:', result);
     checkStatus();
-    list.innerHTML = '<li>Connection attempt finished. Check status.</li>';
+    
+    if (result?.success) {
+        list.innerHTML = `<li>✓ Connected to ${mac}</li>`;
+    } else {
+        list.innerHTML = `<li>✗ Failed to connect to ${mac}<br>${result?.error || 'See logs'}</li>`;
+    }
 }
 
 async function reconnectPrinter() {

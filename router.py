@@ -550,11 +550,13 @@ class Router:
         """
         try:
             data = request.get_json()
-            mac = data.get('mac')
-            port = data.get('port', 1)
+            logger.info(f"Bluetooth connect request received with data: {data}")
+            
+            mac = data.get('mac') if data else None
+            port = data.get('port', 1) if data else 1
             
             if not mac:
-                logger.error("Bluetooth connect attempt without MAC address")
+                logger.error(f"Bluetooth connect attempt without MAC address. Received data: {data}")
                 return jsonify({'success': False, 'error': 'MAC address required'}), 400
             
             logger.info(f"API: Bluetooth connect request for {mac}:{port}")
