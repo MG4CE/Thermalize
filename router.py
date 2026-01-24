@@ -567,19 +567,19 @@ class Router:
             # Disconnect current connection
             self.printer_handler.disconnect()
             
-            self.config['printer']['bluetooth_mac'] = mac
-            self.config['printer']['bluetooth_port'] = port
-            self.config['printer']['type'] = 'bluetooth'
-            
-            self.save_config()
-            
-            # Update handler config, should we pass ['printer'] only?
-            self.printer_handler.config = self.config
-            
             logger.info(f"Attempting connection to Bluetooth printer {mac}...")
             success = self.printer_handler.connect_bluetooth(mac, port)
             
             if success:
+                # Only save config if connection succeeded
+                self.config['printer']['bluetooth_mac'] = mac
+                self.config['printer']['bluetooth_port'] = port
+                self.config['printer']['type'] = 'bluetooth'
+                self.save_config()
+                
+                # Update handler config
+                self.printer_handler.config = self.config
+                
                 logger.info(f"API: Bluetooth printer connected successfully: {mac}")
                 return jsonify({
                     'success': True,
