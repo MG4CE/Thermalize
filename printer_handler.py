@@ -392,24 +392,22 @@ class PrinterHandler:
             
             # Check if device is paired at OS level, attempt pairing if not
             if not self.check_bluetooth_pairing(mac):
-                logger.warning(f"Device {mac} not paired. Attempting automatic pairing...")
+                logger.info(f"Device {mac} not paired. Running scan and attempting automatic pairing...")
                 
                 # Run a quick scan to make the device available for pairing
-                logger.info("Running Bluetooth scan to discover device...")
+                logger.info("Scanning for Bluetooth devices...")
                 try:
-                    scan_process = subprocess.Popen(
-                        ['bluetoothctl', 'scan', 'on'],
-                        stdout=subprocess.PIPE,
-                        stderr=subprocess.PIPE,
-                        text=True
+                    # Use echo to send commands to bluetoothctl
+                    scan_cmd = f'echo -e "scan on\\nquit" | timeout 5 bluetoothctl'
+                    subprocess.run(
+                        scan_cmd,
+                        shell=True,
+                        capture_output=True,
+                        text=True,
+                        timeout=7
                     )
-                    # Let it scan for 3 seconds
-                    time.sleep(3)
-                    scan_process.terminate()
-                    try:
-                        scan_process.wait(timeout=2)
-                    except subprocess.TimeoutExpired:
-                        scan_process.kill()
+                    # Give it a moment to register devices
+                    time.sleep(1)
                     logger.info("Bluetooth scan completed")
                 except Exception as e:
                     logger.warning(f"Scan failed but continuing: {e}")
@@ -638,8 +636,7 @@ class PrinterHandler:
                 logger.info(f"Device {mac} appears to be paired at OS level")
                 return True
             else:
-                logger.warning(f"Device {mac} does not appear to be paired at OS level")
-                logger.warning(f"Pair it first with: bluetoothctl pair {mac}")
+                logger.debug(f"Device {mac} not currently paired")
                 return False
                 
         except Exception as e:
