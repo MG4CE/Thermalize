@@ -5,13 +5,13 @@ Handles image conversion, resizing, dithering, and positioning.
 
 import os
 import json
-from PIL import Image # type: ignore
+from PIL import Image, ImageOps # type: ignore
 import uuid
 from typing import Tuple, Optional
 from image_processing import ImageProcessor, DitheringMethod
 
 
-class ImageProcessor:
+class ImageHandler:
     """Process images for thermal printer output."""
 
     UPLOADS_DIR = 'uploads'
@@ -50,8 +50,12 @@ class ImageProcessor:
         filepath = os.path.join(self.UPLOADS_DIR, f"{image_id}{ext}")
         image_file.save(filepath)
         
-        # Get image dimensions
+        # Fix orientation (EXIF) and get dimensions
         with Image.open(filepath) as img:
+            # Apply EXIF rotation
+            img = ImageOps.exif_transpose(img)
+            # overwrite with fixed orientation
+            img.save(filepath)
             width, height = img.size
         
         metadata = {
@@ -183,7 +187,7 @@ class ImageProcessor:
         else:
             selected_dither_method = self.config['image_settings'].get('dither_method', DitheringMethod.FLOYD_STEINBERG)
 
-        img_dithered = self.apply_dithering(img, selected_dither_method)
+        img_dithered = self.image_processor.apply_dithering(img, selected_dither_method)
         
         # Create canvas with proper width
         canvas_width = self.max_width

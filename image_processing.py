@@ -34,7 +34,7 @@ class ImageProcessor:
         elif method == DitheringMethod.CLUSTERED_DOT:
             return self._clustered_dot_dither(img)
         elif method == DitheringMethod.THRESHOLD:
-            return self.threshold_dither(img)
+            return self._threshold_dither(img)
         elif method == DitheringMethod.NONE:
             return self._none(img)
         else:
