@@ -2,6 +2,10 @@
 
 A web-based application that allows you to print images on thermal receipt printers.
 
+I only tested this app with Raspberry Pi OS on a Raspberry Pi 4 and Pi Zero using a bluetooth TSP100III bluetooth printer. If you test it on other hardware or software configurations and encounter any issues, please feel free to raise a PR or an issue.
+
+This app is a refactored version of a demo vibcoded project, which can hopefully provide a more stable and user-friendly experience.
+
 ## Features
 
 - **Web Interface**: Upload and manage images through a locally hosted web UI
