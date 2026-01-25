@@ -3,9 +3,9 @@ import json
 import logging
 from flask import Flask, request, jsonify, send_file, send_from_directory #type: ignore
 from flask_cors import CORS #type: ignore
-from image_handler import ImageHandler
-from printer_handler import PrinterHandler
-from gpio_handler import GPIOHandler
+from image.handler import ImageHandler
+from printer.printer_handler import PrinterHandler
+from input.gpio import GPIOHandler
 
 logger = logging.getLogger(__name__)
 
