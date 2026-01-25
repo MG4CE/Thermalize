@@ -14,13 +14,15 @@ from image.processor import ImageProcessor, DitheringMethod
 class ImageHandler:
     """Process images for thermal printer output."""
 
-    UPLOADS_DIR = 'uploads'
-    PROCESSED_DIR = 'processed'
-    
     def __init__(self, config_path='config.json'):
         """Initialize image processor with configuration."""
         with open(config_path, 'r') as f:
             self.config = json.load(f)
+        
+        # Get absolute paths for uploads and processed directories
+        project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        self.UPLOADS_DIR = os.path.join(project_root, 'uploads')
+        self.PROCESSED_DIR = os.path.join(project_root, 'processed')
         
         self.max_width = self.config['image_settings']['max_width']
         self.image_processor = ImageProcessor()
