@@ -48,8 +48,18 @@ class GPIOHandler:
             return
         
         try:
+            # Clean up any existing GPIO settings first
+            try:
+                GPIO.cleanup()
+                logger.debug("Cleaned up existing GPIO configuration")
+            except Exception as cleanup_err:
+                logger.debug(f"No existing GPIO to cleanup: {cleanup_err}")
+            
             # Use BCM pin numbering
             GPIO.setmode(GPIO.BCM)
+            
+            # Disable warnings about channels already in use
+            GPIO.setwarnings(False)
             
             # Setup each pin
             pull_up_down = self.config['gpio'].get('pull_up_down', 'pull_up')
@@ -57,6 +67,14 @@ class GPIOHandler:
             
             for idx, pin in enumerate(self.pins):
                 button_number = idx + 1
+                
+                # Remove any existing event detection on this pin
+                try:
+                    GPIO.remove_event_detect(pin)
+                except Exception:
+                    pass  # Pin wasn't being monitored
+                
+                # Setup pin
                 GPIO.setup(pin, GPIO.IN, pull_up_down=pud)
                 
                 # Add event detection for button press (falling edge when pulled up)
@@ -72,6 +90,7 @@ class GPIOHandler:
             
         except Exception as e:
             logger.error(f"Error setting up GPIO: {e}")
+            logger.warning("GPIO buttons will not be available. Use web interface to trigger prints.")
     
     def _button_pressed(self, button_number: int):
         """

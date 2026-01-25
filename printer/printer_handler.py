@@ -27,15 +27,6 @@ try:
 except ImportError:
     STARTSP_AVAILABLE = False
 
-try:
-    import bluetooth # type: ignore
-    BLUETOOTH_AVAILABLE = True
-except ImportError:
-    BLUETOOTH_AVAILABLE = False
-    logger = logging.getLogger(__name__)
-    logger.warning("pybluez2 not available. Bluetooth scanning will be disabled. Pairing via bluetoothctl still works.")
-
-
 logger = logging.getLogger(__name__)
 
 
@@ -646,7 +637,7 @@ class PrinterHandler:
     
     def scan_bluetooth_devices(self, timeout: int = 10) -> List[Dict]:
         """
-        Scan for nearby Bluetooth devices.
+        Scan for nearby Bluetooth devices using bluetoothctl.
         
         Args:
             timeout: Scan duration in seconds
@@ -654,41 +645,88 @@ class PrinterHandler:
         Returns:
             list: Devices with format [{"name": str, "mac": str, "class": int, "is_printer": bool, "is_tsp100": bool}]
         """
-        if not BLUETOOTH_AVAILABLE:
-            logger.error("pybluez2 not available. Cannot scan for Bluetooth devices.")
-            logger.info("You can still pair devices using: bluetoothctl pair <MAC>")
-            return []
-        
         try:
-            logger.info(f"Scanning for Bluetooth devices ({timeout}s)...")
+            logger.info(f"Scanning for Bluetooth devices using bluetoothctl ({timeout}s)...")
             
-            devices = bluetooth.discover_devices(
-                duration=timeout,
-                lookup_names=True,
-                lookup_class=True,
-                flush_cache=True
+            # Start scan in background using bluetoothctl
+            scan_process = subprocess.Popen(
+                ['bluetoothctl', 'scan', 'on'],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True
             )
             
-            result = []
-            for addr, name, dev_class in devices:
-                # Filter for potential printers
-                # Device class 0x1680 = Imaging/Printer
-                is_printer = (dev_class & 0x1FFF) == 0x1680
-                device_name = name or 'Unknown Device'
-                
-                result.append({
-                    'mac': addr,
-                    'name': device_name,
-                    'class': dev_class,
-                    'is_printer': is_printer,
-                    'is_tsp100': 'TSP100' in device_name.upper()
-                })
+            # Let it scan for the specified duration
+            time.sleep(timeout)
             
-            logger.info(f"Found {len(result)} Bluetooth devices")
-            return result
+            # Stop scanning
+            scan_process.terminate()
+            try:
+                scan_process.wait(timeout=2)
+            except subprocess.TimeoutExpired:
+                scan_process.kill()
+            
+            # Get list of discovered devices
+            result = subprocess.run(
+                ['bluetoothctl', 'devices'],
+                capture_output=True,
+                text=True,
+                timeout=5
+            )
+            
+            devices = []
+            if result.returncode == 0:
+                # Parse output: "Device XX:XX:XX:XX:XX:XX Device Name"
+                for line in result.stdout.strip().split('\n'):
+                    if line.startswith('Device '):
+                        parts = line.split(' ', 2)
+                        if len(parts) >= 3:
+                            mac = parts[1]
+                            name = parts[2] if len(parts) > 2 else 'Unknown Device'
+                            
+                            # Get additional device info
+                            info_result = subprocess.run(
+                                ['bluetoothctl', 'info', mac],
+                                capture_output=True,
+                                text=True,
+                                timeout=2
+                            )
+                            
+                            # Try to determine if it's a printer from name or class
+                            is_printer = False
+                            dev_class = 0
+                            
+                            if info_result.returncode == 0:
+                                # Look for Class in info output
+                                for info_line in info_result.stdout.split('\n'):
+                                    if 'Class:' in info_line:
+                                        try:
+                                            class_str = info_line.split('Class:')[1].strip()
+                                            dev_class = int(class_str, 16)
+                                            # Device class 0x1680 = Imaging/Printer
+                                            is_printer = (dev_class & 0x1FFF) == 0x1680
+                                        except (ValueError, IndexError):
+                                            pass
+                            
+                            # Also check name for printer indicators
+                            printer_keywords = ['PRINTER', 'TSP', 'STAR', 'EPSON', 'CITIZEN']
+                            if not is_printer and any(kw in name.upper() for kw in printer_keywords):
+                                is_printer = True
+                            
+                            devices.append({
+                                'mac': mac,
+                                'name': name,
+                                'class': dev_class,
+                                'is_printer': is_printer,
+                                'is_tsp100': 'TSP100' in name.upper()
+                            })
+            
+            logger.info(f"Found {len(devices)} Bluetooth devices")
+            return devices
             
         except Exception as e:
             logger.error(f"Bluetooth scan failed: {e}")
+            logger.error("Make sure BlueZ/bluetoothctl is installed and Bluetooth is powered on")
             return []
 
 
