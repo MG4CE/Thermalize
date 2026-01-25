@@ -8,7 +8,7 @@ import json
 from PIL import Image, ImageOps # type: ignore
 import uuid
 from typing import Tuple, Optional
-from image_processing import ImageProcessor, DitheringMethod
+from image.processor import ImageProcessor, DitheringMethod
 
 
 class ImageHandler:

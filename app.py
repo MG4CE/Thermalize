@@ -6,11 +6,11 @@ import os
 import json
 import logging
 
-from image_handler import ImageHandler
-from printer_handler import PrinterHandler
-from gpio_handler import GPIOHandler
+from image.handler import ImageHandler
+from printer.printer_handler import PrinterHandler
+from input.gpio import GPIOHandler
 
-from router import Router
+from api.router import Router
 
 logging.basicConfig(
     level=logging.DEBUG,  # Changed to DEBUG for detailed USB connection logs

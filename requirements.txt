@@ -3,6 +3,5 @@ Pillow
 python-escpos
 pyusb
 Flask-CORS
-pybluez2
 pyserial
 StarTSPImage

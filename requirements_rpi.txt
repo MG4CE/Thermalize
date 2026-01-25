@@ -3,6 +3,5 @@ Pillow
 python-escpos
 RPi.GPIO
 Flask-CORS
-pybluez2
 pyserial
 StarTSPImage
