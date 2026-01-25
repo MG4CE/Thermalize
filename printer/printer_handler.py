@@ -33,7 +33,7 @@ try:
 except ImportError:
     BLUETOOTH_AVAILABLE = False
     logger = logging.getLogger(__name__)
-    logger.warning("pybluez not available. Bluetooth scanning will be disabled. Pairing via bluetoothctl still works.")
+    logger.warning("pybluez2 not available. Bluetooth scanning will be disabled. Pairing via bluetoothctl still works.")
 
 
 logger = logging.getLogger(__name__)
@@ -655,7 +655,7 @@ class PrinterHandler:
             list: Devices with format [{"name": str, "mac": str, "class": int, "is_printer": bool, "is_tsp100": bool}]
         """
         if not BLUETOOTH_AVAILABLE:
-            logger.error("PyBluez not available. Cannot scan for Bluetooth devices.")
+            logger.error("pybluez2 not available. Cannot scan for Bluetooth devices.")
             logger.info("You can still pair devices using: bluetoothctl pair <MAC>")
             return []
         

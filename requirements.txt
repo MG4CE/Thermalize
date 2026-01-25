@@ -1,8 +1,8 @@
-Flask>=3.0
-Pillow>=10.0
-python-escpos>=3.0
-pyusb>=1.2.1
-Flask-CORS>=4.0
-# pybluez>=0.23  # Optional: Only needed for scanning. Pairing works via bluetoothctl.
-pyserial>=3.5
-StarTSPImage>=0.2.6
+Flask
+Pillow
+python-escpos
+pyusb
+Flask-CORS
+pybluez2
+pyserial
+StarTSPImage

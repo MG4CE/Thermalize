@@ -1,8 +1,8 @@
-Flask>=2.0,<2.3
-Pillow>=9.0,<10.0
-python-escpos>=2.2
-RPi.GPIO>=0.7.1
-Flask-CORS<4.0.0
-pybluez>=0.23
-pyserial>=3.4
-StarTSPImage>=0.2.6
+Flask
+Pillow
+python-escpos
+RPi.GPIO
+Flask-CORS
+pybluez2
+pyserial
+StarTSPImage
