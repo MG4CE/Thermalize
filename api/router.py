@@ -34,12 +34,15 @@ class Router:
             self.images_db = {}
         
         self.images_db_path = images_db_path
+        
+        # Get absolute path to static folder (one level up from api/)
+        self.static_folder = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'static')
 
         with open(self.config_path, 'r') as f:
             self.config = json.load(f)
         
         # Create Flask app instance
-        self.app = Flask(__name__, static_folder='static')
+        self.app = Flask(__name__, static_folder=self.static_folder)
         CORS(self.app)
         
         # Register routes with decorators
@@ -91,15 +94,15 @@ class Router:
 
     def index(self):
         """Serve main web interface."""
-        return send_from_directory('static', 'index.html')
+        return send_from_directory(self.static_folder, 'index.html')
 
     def serve_app_js(self):
         """Serve app.js from static folder."""
-        return send_from_directory('static', 'app.js')
+        return send_from_directory(self.static_folder, 'app.js')
 
     def serve_style_css(self):
         """Serve style.css from static folder."""
-        return send_from_directory('static', 'style.css')
+        return send_from_directory(self.static_folder, 'style.css')
 
     
     def upload_image(self):
