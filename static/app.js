@@ -11,6 +11,7 @@ let currentSettings = {
 let debounceTimer = null;
 let bluetoothScanTimer = null;
 let maxWidth = 640; // Default, will be loaded from config
+let globalConfig = null; // Store config for gallery rendering
 
 // UI References
 const UI = {
@@ -54,6 +55,11 @@ function initListeners() {
         if (e.target.classList.contains('close-btn')) {
             const target = e.target.dataset.target;
             document.getElementById(target).classList.add('hidden');
+            
+            // Show gallery when modals are closed
+            if (target === 'settings-modal' || target === 'editor-modal') {
+                UI.gallery.style.display = '';
+            }
         }
     });
 
@@ -105,6 +111,9 @@ function initListeners() {
     
     // Settings Actions
     document.getElementById('connection-type').addEventListener('change', (e) => handleConnectionSwitch(e.target.value));
+    document.querySelectorAll('.gpio-select').forEach(el => {
+        el.addEventListener('change', handleGpioChange);
+    });
     document.getElementById('protocol-select').addEventListener('change', handleProtocolSwitch);
     document.getElementById('reconnect-printer-btn').addEventListener('click', reconnectPrinter);
     document.getElementById('test-print-btn').addEventListener('click', () => callApi('/api/printer/test', 'POST'));
@@ -139,10 +148,16 @@ async function callApi(url, method = 'GET', body = null) {
 // 1. Config Loading
 async function loadConfig() {
     const config = await callApi('/api/config');
+    globalConfig = config; // Store globally
     if (config && config.image_settings) {
         maxWidth = config.image_settings.max_width || 640;
         // Apply width to preview image
         UI.previewImage.style.width = `${maxWidth}px`;
+    }
+
+    // Update GPIO mappings
+    if (config?.button_assignments) {
+        await populateGpioDropdowns(config.button_assignments);
     }
     
     // Update printer settings UI
@@ -213,8 +228,33 @@ async function refreshGallery() {
         images.forEach(img => {
             const card = document.createElement('div');
             card.className = 'image-card';
+            
+            // Check which button(s) are assigned to this image
+            let buttonBadge = '';
+            if (globalConfig && globalConfig.button_assignments) {
+                const assignedButtons = [];
+                for (const [btnNum, imageId] of Object.entries(globalConfig.button_assignments)) {
+                    if (imageId === img.id) {
+                        assignedButtons.push(btnNum);
+                    }
+                }
+                if (assignedButtons.length > 0) {
+                    buttonBadge = `<div class="button-badge">BTN ${assignedButtons.join(', ')}</div>`;
+                }
+            }
+            
+            // Get processing info
+            const ditherMethod = img.dither_method || 'floyd_steinberg';
+            const rawMode = img.raw_mode || false;
+            const methodLabel = rawMode ? 'RAW' : ditherMethod.replace('_', ' ').toUpperCase();
+            const infoLabel = `<div class="image-info">${methodLabel}</div>`;
+            
             // Use timestamp to bust cache
-            card.innerHTML = `<img src="/api/images/${img.id}/preview?t=${Date.now()}" loading="lazy">`;
+            card.innerHTML = `
+                <img src="/api/images/${img.id}/preview?t=${Date.now()}" loading="lazy">
+                ${buttonBadge}
+                ${infoLabel}
+            `;
             card.onclick = () => openEditor(img);
             UI.gallery.appendChild(card);
         });
@@ -289,6 +329,9 @@ function scheduleProcessUpdate() {
         updatePreviewImage();
         UI.previewImage.style.opacity = '1';
         
+        // Refresh gallery to update processing info badge
+        await refreshGallery();
+        
     }, 600); // 600ms debounce
 }
 
@@ -355,7 +398,7 @@ async function scanBluetooth() {
     loader.classList.remove('hidden');
     
     try {
-        const response = await callApi('/api/printer/bluetooth/scan?timeout=5');
+        const response = await callApi('/api/printer/bluetooth/scan?timeout=20');
         loader.classList.add('hidden');
         
         // Backend returns {success, devices: [], count}
@@ -538,11 +581,103 @@ async function handleProtocolSwitch(e) {
     checkStatus();
 }
 
+// GPIO Logic
+async function populateGpioDropdowns(assignments) {
+    // Get all images
+    const images = await callApi('/api/images');
+    if (!images) return;
+    
+    // Sort images by date (newest first)
+    images.sort((a, b) => b.timestamp - a.timestamp);
+    
+    // Create options HTML
+    const optionsHtml = images.map(img => {
+        // Format date: "Jan 25, 10:30 PM"
+        let dateStr = "Unknown Date";
+        if (img.timestamp) {
+            try {
+                dateStr = new Date(img.timestamp * 1000).toLocaleDateString(undefined, {
+                    month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
+                });
+            } catch (e) {
+                console.warn("Invalid timestamp for image", img.id);
+            }
+        }
+        return `<option value="${img.id}">${dateStr} (ID: ${img.id.substring(0,4)})</option>`;
+    }).join('');
+    
+    const defaultOption = '<option value="">-- None --</option>';
+    
+    // Populate each select
+    ['1', '2', '3', '4'].forEach(num => {
+        const el = document.getElementById(`gpio-btn-${num}`);
+        if(el) {
+            const currentVal = assignments[num];
+            el.innerHTML = defaultOption + optionsHtml;
+            
+            if (currentVal) {
+                el.value = currentVal;
+                updateGpioPreview(num, currentVal);
+            } else {
+                el.value = "";
+                updateGpioPreview(num, null);
+            }
+        }
+    });
+}
+
+function updateGpioPreview(btnNum, imageId) {
+    const imgEl = document.getElementById(`gpio-preview-${btnNum}`);
+    if (!imgEl) return;
+    
+    if (imageId) {
+        imgEl.src = `/api/images/${imageId}/preview?t=${Date.now()}`;
+        imgEl.classList.remove('hidden');
+    } else {
+        imgEl.src = '';
+        imgEl.classList.add('hidden');
+    }
+}
+
+async function handleGpioChange(e) {
+    // Get button number from parent ID or dataset (simplified: inferred from ID)
+    const targetId = e.target.id; // gpio-btn-1
+    const parts = targetId.split('-');
+    const btnNum = parts[parts.length - 1];
+    
+    // Update preview immediately
+    updateGpioPreview(btnNum, e.target.value);
+    
+    const assignments = {};
+    
+    ['1', '2', '3', '4'].forEach(num => {
+        const el = document.getElementById(`gpio-btn-${num}`);
+        if(el) {
+            assignments[num] = el.value || null;
+        }
+    });
+    
+    console.log('Updating GPIO assignments:', assignments);
+    await callApi('/api/config', 'POST', { 
+        button_assignments: assignments 
+    });
+    
+    // Reload config and refresh gallery to update button badges
+    await loadConfig();
+    await refreshGallery();
+}
+
+
 
 /**
  * Utils
  */
 function openModal(name) {
     UI.modals[name].classList.remove('hidden');
+    
+    // Hide gallery when modals are open
+    if (name === 'settings' || name === 'editor') {
+        UI.gallery.style.display = 'none';
+    }
 }
 

@@ -7,11 +7,11 @@ import json
 import logging
 
 try:
-    import RPi.GPIO as GPIO # type: ignore
+    from gpiozero import Button # type: ignore
     GPIO_AVAILABLE = True
 except (ImportError, RuntimeError):
     GPIO_AVAILABLE = False
-    print("Warning: RPi.GPIO not available. Running in simulation mode.")
+    print("Warning: gpiozero not available. Running in simulation mode.")
 
 
 logger = logging.getLogger(__name__)
@@ -32,8 +32,9 @@ class GPIOHandler:
             self.config = json.load(f)
         
         self.pins = self.config['gpio']['pins']
-        self.bounce_time = self.config['gpio']['bounce_time']
+        self.bounce_time = self.config['gpio']['bounce_time'] / 1000.0  # Convert ms to seconds
         self.print_callback = print_callback
+        self.buttons = []
         
         if not GPIO_AVAILABLE:
             logger.warning("GPIO not available. Running in simulation mode.")
@@ -43,54 +44,42 @@ class GPIOHandler:
         self._setup_gpio()
     
     def _setup_gpio(self):
-        """Configure GPIO pins."""
+        """Configure GPIO buttons using gpiozero."""
         if not GPIO_AVAILABLE:
             return
         
         try:
-            # Clean up any existing GPIO settings first
-            try:
-                GPIO.cleanup()
-                logger.debug("Cleaned up existing GPIO configuration")
-            except Exception as cleanup_err:
-                logger.debug(f"No existing GPIO to cleanup: {cleanup_err}")
+            pud_str = self.config['gpio'].get('pull_up_down', 'pull_up')
+            pull_up = (pud_str == 'pull_up')
             
-            # Use BCM pin numbering
-            GPIO.setmode(GPIO.BCM)
-            
-            # Disable warnings about channels already in use
-            GPIO.setwarnings(False)
-            
-            # Setup each pin
-            pull_up_down = self.config['gpio'].get('pull_up_down', 'pull_up')
-            pud = GPIO.PUD_UP if pull_up_down == 'pull_up' else GPIO.PUD_DOWN
-            
+            success_count = 0
             for idx, pin in enumerate(self.pins):
-                button_number = idx + 1
-                
-                # Remove any existing event detection on this pin
+                btn_num = idx + 1
                 try:
-                    GPIO.remove_event_detect(pin)
-                except Exception:
-                    pass  # Pin wasn't being monitored
-                
-                # Setup pin
-                GPIO.setup(pin, GPIO.IN, pull_up_down=pud)
-                
-                # Add event detection for button press (falling edge when pulled up)
-                GPIO.add_event_detect(
-                    pin,
-                    GPIO.FALLING,
-                    callback=lambda channel, btn=button_number: self._button_pressed(btn),
-                    bouncetime=self.bounce_time
-                )
-                logger.info(f"GPIO pin {pin} configured with {pull_up_down} and event detection")
+                    # Create Button with automatic debouncing
+                    button = Button(
+                        pin,
+                        pull_up=pull_up,
+                        bounce_time=self.bounce_time
+                    )
+                    
+                    # Assign callback using closure with default argument
+                    button.when_pressed = lambda b=btn_num: self._button_pressed(b)
+                    
+                    self.buttons.append(button)
+                    success_count += 1
+                    logger.info(f"GPIO pin {pin} (button {btn_num}) configured successfully")
+                    
+                except Exception as e:
+                    logger.error(f"Pin {pin} setup failed: {e}")
             
-            logger.info(f"GPIO setup complete for pins: {self.pins}")
-            
+            if success_count == 0:
+                logger.warning("No GPIO pins configured successfully. Buttons will not work.")
+            else:
+                logger.info(f"GPIO setup complete: {success_count}/{len(self.pins)} pins configured")
+
         except Exception as e:
-            logger.error(f"Error setting up GPIO: {e}")
-            logger.warning("GPIO buttons will not be available. Use web interface to trigger prints.")
+            logger.error(f"Fatal GPIO error: {e}")
     
     def _button_pressed(self, button_number: int):
         """
@@ -109,12 +98,11 @@ class GPIOHandler:
     
     def cleanup(self):
         """Cleanup GPIO resources."""
-        if GPIO_AVAILABLE:
+        if GPIO_AVAILABLE and self.buttons:
             try:
-                # Remove event detection before cleanup
-                for pin in self.pins:
-                    GPIO.remove_event_detect(pin)
-                GPIO.cleanup()
+                for button in self.buttons:
+                    button.close()
+                self.buttons.clear()
                 logger.info("GPIO cleanup complete")
             except Exception as e:
                 logger.error(f"Error during GPIO cleanup: {e}")
@@ -135,12 +123,11 @@ class GPIOHandler:
         
         try:
             button_states = {}
-            for idx, pin in enumerate(self.pins):
+            for idx, button in enumerate(self.buttons):
                 button_number = idx + 1
-                state = GPIO.input(pin)
                 button_states[button_number] = {
-                    'pin': pin,
-                    'pressed': state == GPIO.LOW
+                    'pin': self.pins[idx],
+                    'pressed': button.is_pressed
                 }
             
             return {

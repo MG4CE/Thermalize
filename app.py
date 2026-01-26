@@ -7,16 +7,21 @@ import json
 import logging
 
 from image.handler import ImageHandler
-from printer.printer_handler import PrinterHandler
+from printer.manager import PrinterManager
 from input.gpio import GPIOHandler
 
 from api.router import Router
 
+log_level = logging.DEBUG
+
 logging.basicConfig(
-    level=logging.DEBUG,  # Changed to DEBUG for detailed USB connection logs
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    level=log_level,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    force=True  # Ensure this overrides any prior configuration
 )
+
 logger = logging.getLogger(__name__)
+logger.info(f"Logging level set to: {logging.getLevelName(log_level)}")
 
 CONFIG_PATH = 'config.json'
 IMAGES_DB_PATH = 'images_db.json'
@@ -91,14 +96,13 @@ if __name__ == '__main__':
     try:
         # Initialize handlers
         logger.info("Initializing handlers...")
+        gpio_handler = GPIOHandler(CONFIG_PATH, print_callback=button_press_callback)
         image_handler = ImageHandler(CONFIG_PATH)
-        printer_handler = PrinterHandler(CONFIG_PATH)
+        printer_handler = PrinterManager(CONFIG_PATH)
         
         # Load configuration
         with open(CONFIG_PATH, 'r') as f:
             config = json.load(f)
-
-        gpio_handler = GPIOHandler(CONFIG_PATH, print_callback=button_press_callback)
 
         router = Router(
             image_handler=image_handler,

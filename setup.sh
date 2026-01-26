@@ -96,8 +96,8 @@ setup_app() {
     read -p "Enter server port (default: 5000): " port
     port=${port:-5000}
     
-    read -p "Enter max image width in pixels (default: 640): " max_width
-    max_width=${max_width:-640}
+    read -p "Enter max image width in pixels (default: 600): " max_width
+    max_width=${max_width:-600}
     
     read -p "Enter paper width in mm (default: 83): " paper_width
     paper_width=${paper_width:-83}

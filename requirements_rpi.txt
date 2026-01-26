@@ -1,7 +1,10 @@
 Flask
 Pillow
 python-escpos
+gpiozero
 RPi.GPIO
+lgpio
 Flask-CORS
 pyserial
 StarTSPImage
+pyusb

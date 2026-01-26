@@ -2,9 +2,7 @@
 
 A web-based application that allows you to print images on thermal receipt printers.
 
-I only tested this app with Raspberry Pi OS on a Raspberry Pi 4 and Pi Zero using a bluetooth TSP100III bluetooth printer. If you test it on other hardware or software configurations and encounter any issues, please feel free to raise a PR or an issue.
-
-This app is a refactored version of a demo vibcoded project, which can hopefully provide a more stable and user-friendly experience.
+I only tested this app with Raspberry Pi OS on a Raspberry Pi 4 and Pi Zero using a bluetooth TSP100III bluetooth printer and a generic ESC/POS printer through USB. If you test it on other hardware or software configurations and encounter any issues, please feel free to raise a PR or an issue.
 
 ## Features
 
@@ -78,6 +76,11 @@ sudo ./setup.sh --service-setup
 ## Usage
 
 Access the web interface by navigating to `http://<device-ip>:5000` in your web browser. From there, you can upload images, assign them to GPIO buttons, and manage printing options.
+
+## TODOs
+- Much of this code is AI generated, will likely need a significant amount of revision and refactoring to be stable and maintainable.
+- Bluetooth ESEPOS printer support was not tested, it is expected to work but needs verification.
+- USB STAR TSP100III printer support was not tested, need verification.
 
 
 ## License

@@ -5,6 +5,7 @@ Handles image conversion, resizing, dithering, and positioning.
 
 import os
 import json
+import time
 from PIL import Image, ImageOps # type: ignore
 import uuid
 from typing import Tuple, Optional
@@ -69,7 +70,8 @@ class ImageHandler:
             'extension': ext,
             'processed': False,
             'position': {'x': 0, 'y': 0},
-            'auto_fit': True
+            'auto_fit': True,
+            'timestamp': time.time()
         }
         
         return metadata

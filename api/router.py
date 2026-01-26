@@ -4,14 +4,14 @@ import logging
 from flask import Flask, request, jsonify, send_file, send_from_directory #type: ignore
 from flask_cors import CORS #type: ignore
 from image.handler import ImageHandler
-from printer.printer_handler import PrinterHandler
+from printer.manager import PrinterManager
 from input.gpio import GPIOHandler
 
 logger = logging.getLogger(__name__)
 
 class Router:
 
-    def __init__(self, image_handler: ImageHandler, printer_handler: PrinterHandler, gpio_handler: GPIOHandler,
+    def __init__(self, image_handler: ImageHandler, printer_handler: PrinterManager, gpio_handler: GPIOHandler,
                  config_path: str, image_db: dict, images_db_path: str):
         """Initialize Flask app and routes."""
         self.image_handler = image_handler
@@ -172,16 +172,31 @@ class Router:
         Returns:
             JSON array of image metadata
         """
+        images_list = []
+        
         # Handle case where images_db might be a list instead of dict
         if isinstance(self.images_db, dict):
-            return jsonify(list(self.images_db.values())), 200
+            images_list = list(self.images_db.values())
         elif isinstance(self.images_db, list):
             logger.warning("images_db is a list instead of dict, converting...")
-            # Convert list to dict if it's a list (shouldn't happen but defensive)
-            return jsonify(self.images_db), 200
+            images_list = self.images_db
         else:
             logger.error(f"images_db has unexpected type: {type(self.images_db)}")
             return jsonify([]), 200
+            
+        # Add timestamp if missing (for existing images)
+        for img in images_list:
+            if 'timestamp' not in img or img['timestamp'] is None:
+                try:
+                    if 'filepath' in img and os.path.exists(img['filepath']):
+                        img['timestamp'] = os.path.getmtime(img['filepath'])
+                    else:
+                        img['timestamp'] = 0  # Fallback for missing files
+                except Exception as e:
+                    logger.warning(f"Could not get timestamp for {img.get('id')}: {e}")
+                    img['timestamp'] = 0
+                    
+        return jsonify(images_list), 200
 
 
     def get_image(self, image_id):
@@ -528,7 +543,7 @@ class Router:
             timeout = request.args.get('timeout', 10, type=int)
             
             # Limit timeout to reasonable range
-            timeout = max(5, min(timeout, 30))
+            timeout = max(10, min(timeout, 30))
             
             devices = self.printer_handler.scan_bluetooth_devices(timeout)
             
@@ -570,18 +585,25 @@ class Router:
             # Disconnect current connection
             self.printer_handler.disconnect()
             
+            # Update config with Bluetooth settings
+            self.config['printer']['bluetooth_mac'] = mac
+            self.config['printer']['bluetooth_port'] = port
+            self.config['printer']['type'] = 'bluetooth'
+            self.save_config()
+            
+            # Reload config in printer handler
+            self.printer_handler.config = self.printer_handler._load_config(self.config_path)
+            
+            # Update printer instance config if it exists
+            if self.printer_handler.printer:
+                self.printer_handler.printer.config = self.printer_handler.config['printer']
+                logger.debug("Updated printer instance config with new bluetooth_mac")
+            
+            # Attempt connection using standard connect method
             logger.info(f"Attempting connection to Bluetooth printer {mac}...")
-            success = self.printer_handler.connect_bluetooth(mac, port)
+            success = self.printer_handler.connect()
             
             if success:
-                # Only save config if connection succeeded
-                self.config['printer']['bluetooth_mac'] = mac
-                self.config['printer']['bluetooth_port'] = port
-                self.config['printer']['type'] = 'bluetooth'
-                self.save_config()
-                
-                # Update handler config
-                self.printer_handler.config = self.config
                 
                 logger.info(f"API: Bluetooth printer connected successfully: {mac}")
                 return jsonify({
@@ -676,39 +698,32 @@ class Router:
             if self.printer_handler.is_connected and self.printer_handler.connection_type == 'bluetooth':
                 self.printer_handler.disconnect()
             
-            # Unpair at OS level using bluetoothctl
-            import subprocess
-            result = subprocess.run(
-                ['bluetoothctl', 'remove', mac],
-                capture_output=True,
-                text=True,
-                timeout=10
-            )
+            # Unpair using printer handler
+            success = self.printer_handler.unpair_bluetooth_device(mac)
             
-            if result.returncode == 0 or 'Device has been removed' in result.stdout:
-                # Clear all Bluetooth config
-                self.config['printer']['bluetooth_mac'] = None
-                self.config['printer']['bluetooth_port'] = None
-                # Reset to USB if Bluetooth was selected
-                if self.config['printer']['type'] == 'bluetooth':
-                    self.config['printer']['type'] = 'usb'
-                self.save_config()
-                
-                # Update handler config
-                self.printer_handler.config = self.config
-                
-                logger.info(f"Successfully unpaired device {mac} and reset config")
+            # Clear Bluetooth config regardless of unpair result
+            self.config['printer']['bluetooth_mac'] = None
+            self.config['printer']['bluetooth_port'] = None
+            if self.config['printer']['type'] == 'bluetooth':
+                self.config['printer']['type'] = 'usb'
+            self.save_config()
+            
+            # Update handler config
+            self.printer_handler.config = self.printer_handler._load_config(self.config_path)
+            
+            if success:
+                logger.info(f"Successfully unpaired device {mac}")
                 return jsonify({
                     'success': True,
                     'message': f'Device {mac} unpaired successfully'
                 }), 200
             else:
-                logger.warning(f"Failed to unpair device {mac}: {result.stderr}")
+                logger.warning(f"Unpair may have failed for {mac}, but config cleared")
                 return jsonify({
-                    'success': False,
-                    'error': f'Failed to unpair: {result.stderr}',
-                    'stdout': result.stdout
-                }), 500
+                    'success': True,
+                    'message': f'Config cleared. Device {mac} removed from app.',
+                    'warning': 'Unpair operation may have failed'
+                }), 200
             
         except Exception as e:
             logger.error(f"Error unpairing Bluetooth device: {e}")
@@ -746,7 +761,7 @@ class Router:
             self.save_config()
             
             # Update handler config
-            self.printer_handler.config = self.config
+            self.printer_handler.config = self.printer_handler._load_config(self.config_path)
             
             # Reconnect
             success = self.printer_handler.connect()
