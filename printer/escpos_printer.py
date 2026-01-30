@@ -195,13 +195,13 @@ class ESCPOSPrinter:
                 printer.image(img)
                 
                 # Longer wait to allow printer to cool between operations
-                time.sleep(1.5)
+                time.sleep(0.5)
                 
                 # Feed paper once before cutting
                 printer.text('\n')
                 
                 # Additional cooling time
-                time.sleep(0.5)
+                time.sleep(1)
                 
                 # Cut paper
                 printer.cut()
