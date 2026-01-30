@@ -330,14 +330,30 @@ class BluetoothConnection:
             
             logger.debug("[Bluetooth] Bluetoothctl ready")
             
+            # Ensure Bluetooth is powered on and agent is ready
+            logger.debug("[Bluetooth] Sending power on command...")
+            process.stdin.write('power on\n')
+            process.stdin.flush()
+            time.sleep(0.5)
+            
+            logger.debug("[Bluetooth] Enabling agent...")
+            process.stdin.write('agent on\n')
+            process.stdin.flush()
+            time.sleep(0.5)
+            
+            logger.debug("[Bluetooth] Setting default agent...")
+            process.stdin.write('default-agent\n')
+            process.stdin.flush()
+            time.sleep(0.5)
+            
             # Start scanning
             logger.info(f"[Bluetooth] Starting scan...")
             process.stdin.write('scan on\n')
             process.stdin.flush()
             
             # Wait for scan to discover devices
-            logger.info(f"[Bluetooth] Scanning for {mac} (10 seconds)...")
-            time.sleep(10)
+            logger.info(f"[Bluetooth] Scanning for {mac} (15 seconds)...")
+            time.sleep(15)
             
             # Consume/clear output from scan command
             logger.debug("[Bluetooth] Consuming scan output buffer...")

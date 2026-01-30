@@ -35,6 +35,16 @@ print_warning() {
 setup_app() {
     print_info "Starting Thermalize setup..."
     
+    # Install system dependencies
+    print_info "Installing system dependencies..."
+    apt-get update
+    apt-get install -y libgpio-dev
+    if [ $? -ne 0 ]; then
+        print_error "Failed to install system dependencies"
+        exit 1
+    fi
+    print_info "System dependencies installed successfully"
+    
     # 1. Create a virtual environment
     print_info "Creating virtual environment..."
     if [ -d "$VENV_DIR" ]; then
