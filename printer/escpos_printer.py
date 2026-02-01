@@ -1,6 +1,6 @@
 """
 ESC/POS protocol implementation for thermal printers.
-Supports both USB and Bluetooth connections.
+Supports USB connections only (Bluetooth not supported).
 """
 
 import logging
@@ -9,7 +9,6 @@ from typing import Optional
 from PIL import Image # type: ignore
 
 from .usb import USBConnection
-from .bluetooth import BluetoothConnection
 from .exceptions import PrinterConnectionError
 
 try:
@@ -24,23 +23,21 @@ logger = logging.getLogger(__name__)
 class ESCPOSPrinter:
     """ESC/POS protocol printer implementation."""
     
-    def __init__(self, config: dict):
+    def __init__(self, retry_attempts: int = 3):
         """
         Initialize ESC/POS printer.
         
         Args:
-            config: Printer configuration dictionary
+            retry_attempts: Number of retry attempts for connection
         """
         if not ESCPOS_AVAILABLE:
             raise ImportError("ESC/POS library not available. Install with: pip install python-escpos")
         
-        self.config = config
         self.usb_connection = None
-        self.bluetooth_connection = None
         self.connection_type = None
-        self.retry_attempts = config.get('retry_attempts', 3)
+        self.retry_attempts = retry_attempts
     
-    def connect_usb(self, vendor_id: Optional[int] = None, product_id: Optional[int] = None) -> bool:
+    def connect_usb(self, vendor_id: Optional[int] = None, product_id: Optional[int] = None, auto_detect: bool = True) -> bool:
         """
         Connect to USB printer.
         
@@ -52,7 +49,7 @@ class ESCPOSPrinter:
             True if connection successful
         """
         try:
-            self.usb_connection = USBConnection(self.config)
+            self.usb_connection = USBConnection(auto_detect=auto_detect, vendor_id=vendor_id, product_id=product_id)
             self.usb_connection.connect(vendor_id, product_id)
             self.connection_type = 'usb'
             logger.info("[ESC/POS] Connected via USB")
@@ -64,35 +61,20 @@ class ESCPOSPrinter:
     
     def connect_bluetooth(self, mac_address: Optional[str] = None, port: Optional[int] = None) -> bool:
         """
-        Connect to Bluetooth printer.
+        Connect to Bluetooth printer (not supported).
         
-        Args:
-            mac_address: Bluetooth MAC address (optional)
-            port: RFCOMM port (optional)
-            
         Returns:
-            True if connection successful
+            False - Bluetooth not supported for ESC/POS
         """
-        try:
-            self.bluetooth_connection = BluetoothConnection(self.config)
-            self.bluetooth_connection.connect(mac_address, port, protocol='escpos')
-            self.connection_type = 'bluetooth'
-            logger.info("[ESC/POS] Connected via Bluetooth")
-            return True
-        except Exception as e:
-            logger.error(f"[ESC/POS] Bluetooth connection failed: {e}")
-            self.bluetooth_connection = None
-            return False
+        logger.error("[ESC/POS] Bluetooth connection not supported for ESC/POS protocol")
+        logger.error("[ESC/POS] Please use USB connection or switch to StarTSP protocol")
+        return False
     
     def disconnect(self):
         """Disconnect from printer."""
         if self.usb_connection:
             self.usb_connection.disconnect()
             self.usb_connection = None
-        
-        if self.bluetooth_connection:
-            self.bluetooth_connection.disconnect()
-            self.bluetooth_connection = None
         
         self.connection_type = None
         logger.info("[ESC/POS] Disconnected")
@@ -104,11 +86,7 @@ class ESCPOSPrinter:
         Returns:
             True if connected
         """
-        if self.usb_connection and self.usb_connection.is_connected():
-            return True
-        if self.bluetooth_connection and self.bluetooth_connection.is_connected():
-            return True
-        return False
+        return self.usb_connection and self.usb_connection.is_connected()
     
     def _get_printer_object(self):
         """
@@ -122,8 +100,6 @@ class ESCPOSPrinter:
         """
         if self.usb_connection and self.usb_connection.is_connected():
             return self.usb_connection.get_printer()
-        elif self.bluetooth_connection and self.bluetooth_connection.is_connected():
-            return self.bluetooth_connection.get_connection()
         else:
             raise PrinterConnectionError("Printer not connected")
     
@@ -207,13 +183,6 @@ class ESCPOSPrinter:
                 printer.cut()
                 
                 logger.info(f"[ESC/POS] Successfully printed image: {image_path}")
-                
-                # Auto-disconnect Bluetooth printer after successful print
-                if self.connection_type == 'bluetooth':
-                    logger.info("[ESC/POS] Auto-disconnecting Bluetooth printer")
-                    time.sleep(1)
-                    self.disconnect()
-                
                 return True
                 
             except Exception as e:
@@ -225,8 +194,6 @@ class ESCPOSPrinter:
                     # Mark as disconnected to trigger reconnect
                     if self.usb_connection:
                         self.usb_connection.printer = None
-                    if self.bluetooth_connection:
-                        self.bluetooth_connection.serial_connection = None
                     continue
         
         logger.error("[ESC/POS] Failed to print after all retry attempts")
@@ -261,13 +228,6 @@ class ESCPOSPrinter:
             printer.cut()
             
             logger.info("[ESC/POS] Test print successful")
-            
-            # Auto-disconnect Bluetooth to free up printer
-            if self.connection_type == 'bluetooth':
-                logger.info("[ESC/POS] Auto-disconnecting Bluetooth printer")
-                time.sleep(1)
-                self.disconnect()
-            
             return True
             
         except Exception as e:
@@ -290,7 +250,5 @@ class ESCPOSPrinter:
         if self.connection_type == 'usb' and self.usb_connection:
             status['vendor_id'] = hex(self.usb_connection.vendor_id) if self.usb_connection.vendor_id else None
             status['product_id'] = hex(self.usb_connection.product_id) if self.usb_connection.product_id else None
-        elif self.connection_type == 'bluetooth' and self.bluetooth_connection:
-            status['mac_address'] = self.bluetooth_connection.mac_address
         
         return status

@@ -37,9 +37,6 @@ class Router:
         
         # Get absolute path to static folder (one level up from api/)
         self.static_folder = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'static')
-
-        with open(self.config_path, 'r') as f:
-            self.config = json.load(f)
         
         # Create Flask app instance
         self.app = Flask(__name__, static_folder=self.static_folder)
@@ -82,14 +79,10 @@ class Router:
         with open(self.images_db_path, 'w') as f:
             json.dump(db, f, indent=2)
 
-    def save_config(self):
-        """Save current configuration to file."""
-        with open(self.config_path, 'w') as f:
-            json.dump(self.config, f, indent=2)
-
     def _allowed_file(self, filename):
         """Check if file extension is allowed."""
-        return '.' in filename and filename.rsplit('.', 1)[1].lower() in self.config['global_settings']['allowed_extensions']
+        config = self.printer_handler.get_config()
+        return '.' in filename and filename.rsplit('.', 1)[1].lower() in config['global_settings']['allowed_extensions']
 
 
     def index(self):
@@ -229,11 +222,13 @@ class Router:
             if image_id not in self.images_db:
                 return jsonify({'error': 'Image not found'}), 404
             
-            for button, assigned_id in self.config['button_assignments'].items():
+            # Clear button assignments for this image
+            config = self.printer_handler.get_config()
+            button_assignments = config['button_assignments'].copy()
+            for button, assigned_id in button_assignments.items():
                 if assigned_id == image_id:
-                    self.config['button_assignments'][button] = None
-            
-            self.save_config()
+                    button_assignments[button] = None
+            self.printer_handler.update_config('button_assignments', button_assignments)
             
             # Delete files
             self.image_handler.delete_image(image_id)
@@ -367,10 +362,11 @@ class Router:
         Returns:
             JSON with configuration
         """
+        config = self.printer_handler.get_config()
         return jsonify({
-            'button_assignments': self.config['button_assignments'],
-            'image_settings': self.config['image_settings'],
-            'printer': self.config['printer']
+            'button_assignments': config['button_assignments'],
+            'image_settings': config['image_settings'],
+            'printer': config['printer']
         }), 200
 
 
@@ -390,13 +386,12 @@ class Router:
             if 'button_assignments' not in data:
                 return jsonify({'error': 'Missing button_assignments'}), 400
             
-            # Update button assignments
-            self.config['button_assignments'] = data['button_assignments']
-            
-            self.save_config()
+            # Update button assignments via printer handler
+            self.printer_handler.update_config('button_assignments', data['button_assignments'])
             
             logger.info(f"Configuration updated: {data['button_assignments']}")
-            return jsonify(self.config['button_assignments']), 200
+            config = self.printer_handler.get_config()
+            return jsonify(config['button_assignments']), 200
             
         except Exception as e:
             logger.error(f"Error updating config: {e}")
@@ -585,14 +580,8 @@ class Router:
             # Disconnect current connection
             self.printer_handler.disconnect()
             
-            # Update config with Bluetooth settings
-            self.config['printer']['bluetooth_mac'] = mac
-            self.config['printer']['bluetooth_port'] = port
-            self.config['printer']['type'] = 'bluetooth'
-            self.save_config()
-            
-            # Reload config in printer handler
-            self.printer_handler.config = self.printer_handler._load_config(self.config_path)
+            # Update config with Bluetooth settings via printer handler
+            self.printer_handler.update_bluetooth_config(mac, port)
             
             # Update printer instance config if it exists
             if self.printer_handler.printer:
@@ -684,7 +673,8 @@ class Router:
         try:
             # Handle both JSON and non-JSON requests
             data = request.get_json(silent=True) or {}
-            mac = data.get('mac') or self.config['printer'].get('bluetooth_mac')
+            config = self.printer_handler.get_config()
+            mac = data.get('mac') or config['printer'].get('bluetooth_mac')
             
             if not mac:
                 return jsonify({
@@ -702,14 +692,7 @@ class Router:
             success = self.printer_handler.unpair_bluetooth_device(mac)
             
             # Clear Bluetooth config regardless of unpair result
-            self.config['printer']['bluetooth_mac'] = None
-            self.config['printer']['bluetooth_port'] = None
-            if self.config['printer']['type'] == 'bluetooth':
-                self.config['printer']['type'] = 'usb'
-            self.save_config()
-            
-            # Update handler config
-            self.printer_handler.config = self.printer_handler._load_config(self.config_path)
+            self.printer_handler.clear_bluetooth_config()
             
             if success:
                 logger.info(f"Successfully unpaired device {mac}")
@@ -756,12 +739,8 @@ class Router:
             # Disconnect current
             self.printer_handler.disconnect()
             
-            self.config['printer']['type'] = conn_type
-            
-            self.save_config()
-            
-            # Update handler config
-            self.printer_handler.config = self.printer_handler._load_config(self.config_path)
+            # Update connection type via printer handler
+            self.printer_handler.update_config('printer.type', conn_type)
             
             # Reconnect
             success = self.printer_handler.connect()

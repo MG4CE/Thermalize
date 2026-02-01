@@ -35,8 +35,7 @@ class PrinterManager:
         self.printer = None  # Current printer implementation (ESCPOSPrinter or StarTSPPrinter)
         self.protocol = self.config['printer'].get('protocol', 'escpos')
         self.simulation_mode = False
-        self.retry_attempts = self.config['printer'].get('retry_attempts', 3)
-        
+
         # Backward compatibility attributes
         self.is_connected = False
         self.connection_type = None
@@ -105,10 +104,11 @@ class PrinterManager:
         Returns:
             Printer instance (ESCPOSPrinter or StarTSPPrinter)
         """
+        retry_attempts = self.config['printer'].get('retry_attempts', 3)
         if self.protocol == 'startsp':
-            return StarTSPPrinter(self.config['printer'])
+            return StarTSPPrinter(retry_attempts)
         else:
-            return ESCPOSPrinter(self.config['printer'])
+            return ESCPOSPrinter(retry_attempts)
     
     def connect(self) -> bool:
         """
@@ -129,7 +129,7 @@ class PrinterManager:
             if conn_type == 'bluetooth':
                 success = self._connect_bluetooth()
             elif conn_type == 'usb':
-                success = self._connect_usb()
+                success = self._connect_usb(self.config['printer'].get('vendor_id'), self.config['printer'].get('product_id'), self.config['printer'].get('auto_detect', True))
             elif conn_type == 'auto':
                 # Try Bluetooth first if configured, then USB
                 logger.info("[Manager] Auto-detect mode: trying Bluetooth first...")
@@ -137,7 +137,7 @@ class PrinterManager:
                 
                 if not success:
                     logger.info("[Manager] Bluetooth failed, trying USB...")
-                    success = self._connect_usb()
+                    success = self._connect_usb(self.config['printer'].get('vendor_id'), self.config['printer'].get('product_id'), self.config['printer'].get('auto_detect', True))
             else:
                 logger.error(f"[Manager] Unknown connection type: {conn_type}")
                 return False
@@ -145,6 +145,7 @@ class PrinterManager:
             # Update status
             if success:
                 self.is_connected = True
+                self.simulation_mode = False
                 self._update_connection_info()
                 logger.info(f"[Manager] Successfully connected via {self.connection_type}")
             else:
@@ -171,7 +172,7 @@ class PrinterManager:
                 logger.error("[Manager] USB not supported for StarTSP protocol")
                 return False
             
-            return self.printer.connect_usb()
+            return self.printer.connect_usb(self.config['printer'].get('vendor_id'), self.config['printer'].get('product_id'), self.config['printer'].get('auto_detect', True))
         except Exception as e:
             logger.error(f"[Manager] USB connection failed: {e}")
             return False
@@ -189,7 +190,8 @@ class PrinterManager:
                 logger.debug("[Manager] No Bluetooth MAC configured, skipping Bluetooth")
                 return False
             
-            return self.printer.connect_bluetooth()
+            port = self.config['printer'].get('bluetooth_port', 1)
+            return self.printer.connect_bluetooth(mac, port)
         except Exception as e:
             logger.error(f"[Manager] Bluetooth connection failed: {e}")
             return False
@@ -305,7 +307,7 @@ class PrinterManager:
         # Create new printer instance
         self.printer = self._create_printer_instance()
         
-        # Update config file
+        # Update config and save
         self.config['printer']['protocol'] = new_protocol
         self._save_config()
         
@@ -323,7 +325,7 @@ class PrinterManager:
             List of devices with format [{"name": str, "mac": str, "class": int, "is_printer": bool, "is_tsp100": bool}]
         """
         try:
-            bt_conn = BluetoothConnection(self.config['printer'])
+            bt_conn = BluetoothConnection(self.config['printer']['bluetooth_mac'], self.config['printer'].get('bluetooth_port', 1))
             devices = bt_conn.scan_devices(timeout)
             logger.info(f"[Manager] Bluetooth scan found {len(devices)} devices")
             return devices
@@ -343,7 +345,7 @@ class PrinterManager:
             True if pairing successful
         """
         try:
-            bt_conn = BluetoothConnection(self.config['printer'])
+            bt_conn = BluetoothConnection(self.config['printer']['bluetooth_mac'], self.config['printer'].get('bluetooth_port', 1))
             bt_conn.pair_device(mac, timeout)
             logger.info(f"[Manager] Successfully paired with device {mac}")
             return True
@@ -362,7 +364,7 @@ class PrinterManager:
             True if unpaired successfully
         """
         try:
-            bt_conn = BluetoothConnection(self.config['printer'])
+            bt_conn = BluetoothConnection(self.config['printer']['bluetooth_mac'], self.config['printer'].get('bluetooth_port', 1))
             bt_conn.unpair_device(mac)
             logger.info(f"[Manager] Successfully unpaired device {mac}")
             return True
@@ -381,7 +383,7 @@ class PrinterManager:
             True if device appears to be paired
         """
         try:
-            bt_conn = BluetoothConnection(self.config['printer'])
+            bt_conn = BluetoothConnection(self.config['printer']['bluetooth_mac'], self.config['printer'].get('bluetooth_port', 1))
             return bt_conn.check_pairing(mac)
         except Exception as e:
             logger.debug(f"[Manager] Could not check pairing status: {e}")
@@ -465,6 +467,30 @@ class PrinterManager:
             True if successful
         """
         return self.switch_protocol(protocol)
+    
+    def update_bluetooth_config(self, mac: str, port: int = 1):
+        """
+        Update Bluetooth configuration.
+        
+        Args:
+            mac: Bluetooth MAC address
+            port: RFCOMM port (default: 1)
+        """
+        self.config['printer']['bluetooth_mac'] = mac
+        self.config['printer']['bluetooth_port'] = port
+        self.config['printer']['type'] = 'bluetooth'
+        self._save_config()
+        logger.info(f"[Manager] Bluetooth config updated: {mac}:{port}")
+    
+    def clear_bluetooth_config(self):
+        """Clear Bluetooth configuration and reset to USB."""
+        was_bluetooth = self.config['printer']['type'] == 'bluetooth'
+        self.config['printer']['bluetooth_mac'] = None
+        self.config['printer']['bluetooth_port'] = None
+        if was_bluetooth:
+            self.config['printer']['type'] = 'usb'
+        self._save_config()
+        logger.info("[Manager] Bluetooth config cleared")
     
     def __del__(self):
         """Cleanup on deletion."""

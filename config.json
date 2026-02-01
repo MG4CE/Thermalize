@@ -7,7 +7,8 @@
     "auto_detect": true,
     "bluetooth_mac": null,
     "bluetooth_port": 1,
-    "retry_attempts": 3
+    "retry_attempts": 3,
+    "bottom_padding": 80
   },
   "gpio": {
     "pins": [
@@ -26,8 +27,8 @@
     "4": null
   },
   "image_settings": {
-    "max_width": 600,
-    "paper_width_mm": 83
+    "max_width": 576,
+    "paper_width_mm": 80
   },
   "global_settings": {
     "allowed_extensions": [

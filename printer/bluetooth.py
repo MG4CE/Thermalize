@@ -26,18 +26,18 @@ logger = logging.getLogger(__name__)
 class BluetoothConnection:
     """Manages Bluetooth printer connections."""
     
-    def __init__(self, config: dict):
+    def __init__(self, bluetooth_mac: str, rfcomm_port: int = 1):
         """
         Initialize Bluetooth connection handler.
         
         Args:
             config: Printer configuration dictionary
         """
-        self.config = config
+        self.bluetooth_mac = bluetooth_mac
         self.serial_connection = None
         self.mac_address = None
         self.rfcomm_device = '/dev/rfcomm0'
-        self.rfcomm_port = config.get('bluetooth_port', 1)
+        self.rfcomm_port = rfcomm_port
     
     def scan_devices(self, timeout: int = 10) -> List[Dict]:
         """
@@ -606,7 +606,7 @@ class BluetoothConnection:
             BluetoothPairingError: If pairing fails
         """
         # Get MAC from parameter or config
-        mac = mac_address or self.config.get('bluetooth_mac')
+        mac = mac_address or self.bluetooth_mac
         if not mac:
             raise PrinterConnectionError(
                 "No Bluetooth MAC address configured. Set 'bluetooth_mac' in config.json"

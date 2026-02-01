@@ -6,39 +6,92 @@ Currently supports Bluetooth connections only (USB not yet tested).
 import logging
 import time
 from typing import Optional
-from PIL import Image, ImageDraw, ImageFont # type: ignore
+from PIL import Image, ImageDraw, ImageFont, ImageOps # type: ignore
 
 from .bluetooth import BluetoothConnection
 from .exceptions import PrinterConnectionError
 
-try:
-    import StarTSPImage # type: ignore
-    STARTSP_AVAILABLE = True
-except ImportError:
-    STARTSP_AVAILABLE = False
-
 logger = logging.getLogger(__name__)
+
+class StarTSPImage:
+    def buildRaster(img, cut=True, bottom_padding=0):
+
+        bytes_per_line = 72
+
+        # Convert image to greyscale and resize to max width
+        basewidth = bytes_per_line * 8
+        wpercent = (basewidth / float(img.width))
+        hsize = int((float(img.height) * float(wpercent)))
+        img = ImageOps.invert(img.convert('RGB'))
+        img = img.convert(mode='1').resize((basewidth, hsize), Image.Resampling.LANCZOS)
+        
+        # Add white space padding at the bottom if specified
+        if bottom_padding > 0:
+            # Create new image with extra height
+            # Use 0 (black) because image is already inverted for thermal printer
+            # 0 in inverted image = white paper (no print)
+            padded_img = Image.new('1', (basewidth, hsize + bottom_padding), 0)
+            # Paste original image at the top
+            padded_img.paste(img, (0, 0))
+            img = padded_img
+
+        # PIL mode 1 image (1-bit pixels, black and white, one pixel per byte)
+        bytesarray = bytes(img.tobytes())
+
+        # Start our raster image
+        buf = []
+        buf.extend([0x1b, ord('*'), ord('r'), ord('A')])                  # Enter raster mode    
+        buf.extend([0x1b, ord('*'), ord('r'), ord('P'), ord('0'), 0x00])  # continuous mode
+
+        # Handle cuts
+        if not cut:
+            buf.extend([0x1b, ord('*'), ord('r'), ord('E'), ord('1'), 0x00]) # Raster EOT no-cut
+
+        # Loop over bytes array, adding a transfer data command for each line
+        # followed by the amount of bytes that make up a line
+        byte = 0
+        for line in range(img.height):
+            line_bytes = [ord('b'), bytes_per_line, 0] # Transfer of raster data
+            for b in range(bytes_per_line):
+                line_bytes.append(bytesarray[byte])
+                byte += 1
+            buf.extend(line_bytes)
+
+        buf.extend([0x1b, ord('*'), ord('r'), ord('B')]) # Quit raster mode
+
+        return bytearray(buf)
+
+
+    def imageToRaster(img, cut=True, bottom_padding=0):
+        return StarTSPImage.buildRaster(img, cut, bottom_padding)
+
+
+    def imageFileToRaster(image_path, cut=True, bottom_padding=0):
+        img = Image.open(image_path)
+        return StarTSPImage.buildRaster(img, cut, bottom_padding)
+
 
 
 class StarTSPPrinter:
     """StarTSP protocol printer implementation."""
     
-    def __init__(self, config: dict):
+    def __init__(self, retry_attempts: int = 3, bottom_padding: int = 100):
         """
         Initialize StarTSP printer.
         
         Args:
-            config: Printer configuration dictionary
+            retry_attempts: Number of retry attempts for connection
+            bottom_padding: Pixels of white space to add at bottom of images
         """
-        if not STARTSP_AVAILABLE:
-            raise ImportError("StarTSP library not available. Install with: pip install StarTSPImage")
-        
-        self.config = config
         self.bluetooth_connection = None
         self.connection_type = None
-        self.retry_attempts = config.get('retry_attempts', 3)
+        self.retry_attempts = retry_attempts
+        self.bottom_padding = bottom_padding
+        # Store connection info for reconnection
+        self.mac_address = None
+        self.port = 1 
     
-    def connect_bluetooth(self, mac_address: Optional[str] = None, port: Optional[int] = None) -> bool:
+    def connect_bluetooth(self, mac_address: str, port: int = 1) -> bool:
         """
         Connect to Bluetooth printer.
         
@@ -50,7 +103,11 @@ class StarTSPPrinter:
             True if connection successful
         """
         try:
-            self.bluetooth_connection = BluetoothConnection(self.config)
+            # Store connection info for reconnection
+            self.mac_address = mac_address
+            self.port = port
+            
+            self.bluetooth_connection = BluetoothConnection(mac_address, port)
             self.bluetooth_connection.connect(mac_address, port, protocol='startsp')
             self.connection_type = 'bluetooth'
             logger.info("[StarTSP] Connected via Bluetooth")
@@ -60,7 +117,7 @@ class StarTSPPrinter:
             self.bluetooth_connection = None
             return False
     
-    def connect_usb(self) -> bool:
+    def connect_usb(self, vendor_id: Optional[int] = None, product_id: Optional[int] = None, auto_detect: bool = True) -> bool:
         """
         Connect to USB printer (not yet supported).
         
@@ -75,9 +132,7 @@ class StarTSPPrinter:
         """Disconnect from printer."""
         if self.bluetooth_connection:
             self.bluetooth_connection.disconnect()
-            self.bluetooth_connection = None
         
-        self.connection_type = None
         logger.info("[StarTSP] Disconnected")
     
     def is_connected(self) -> bool:
@@ -170,6 +225,10 @@ class StarTSPPrinter:
             if not self.is_connected():
                 if auto_reconnect and attempt < self.retry_attempts - 1:
                     logger.warning(f"[StarTSP] Printer not connected. Reconnect attempt {attempt+1}/{self.retry_attempts}")
+                    if not self.mac_address:
+                        logger.error("[StarTSP] No MAC address stored for reconnection")
+                        return False
+                    self.connect_bluetooth(self.mac_address, self.port)
                     time.sleep(1)
                     continue
                 else:
@@ -189,13 +248,9 @@ class StarTSPPrinter:
                 img = Image.open(image_path)
                 logger.debug(f"[StarTSP] Loaded image: {img.size}, mode: {img.mode}")
                 
-                # Feed one line at the start
-                serial_conn.write(b'\n')
-                serial_conn.flush()
-                
                 # Convert to StarTSP raster format
                 logger.debug("[StarTSP] Converting image to raster format...")
-                raster = StarTSPImage.imageToRaster(img, cut=True)
+                raster = StarTSPImage.imageToRaster(img, cut=True, bottom_padding=self.bottom_padding)
                 logger.debug(f"[StarTSP] Raster size: {len(raster)} bytes")
                 
                 # Send raw bytes via serial
@@ -265,7 +320,7 @@ class StarTSPPrinter:
                 return False
             
             # Create a test image with PIL
-            img = Image.new('RGB', (640, 400), color='white')
+            img = Image.new('RGB', (576, 400), color='white')
             draw = ImageDraw.Draw(img)
             
             # Try to load fonts, fallback to default if not available
@@ -278,19 +333,15 @@ class StarTSPPrinter:
                 font_medium = ImageFont.load_default()
             
             # Draw test pattern with thicker lines
-            draw.rectangle((10, 10, 630, 390), outline='black', width=8)
+            draw.rectangle((10, 10, 576, 390), outline='black', width=8)
             draw.text((120, 50), "Star TSP Printer Test", fill='black', font=font_large)
             draw.text((220, 120), "Status: OK", fill='black', font=font_medium)
-            draw.text((50, 170), "Width: 83mm (640px @ 203 DPI)", fill='black', font=font_medium)
+            draw.text((50, 170), "Width: 80mm (576px @ 203 DPI)", fill='black', font=font_medium)
             draw.text((140, 220), "Protocol: StarTSP", fill='black', font=font_medium)
-            
-            # Draw thicker pattern lines
-            for i in range(20, 620, 30):
-                draw.line([(i, 280), (i, 370)], fill='black', width=6)
             
             # Convert to raster
             logger.debug("[StarTSP] Converting test image to raster format...")
-            raster = StarTSPImage.imageToRaster(img, cut=True)
+            raster = StarTSPImage.imageToRaster(img, cut=True, bottom_padding=self.bottom_padding)
             logger.debug(f"[StarTSP] Raster size: {len(raster)} bytes")
             
             # Send to printer

@@ -6,5 +6,4 @@ RPi.GPIO
 lgpio
 Flask-CORS
 pyserial
-StarTSPImage
 pyusb

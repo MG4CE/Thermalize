@@ -29,17 +29,17 @@ class USBConnection:
         (0x1fc9, 0x2016),  # Generic
     ]
     
-    def __init__(self, config: dict):
+    def __init__(self, auto_detect: bool = True, vendor_id: Optional[int] = None, product_id: Optional[int] = None):
         """
         Initialize USB connection handler.
         
         Args:
-            config: Printer configuration dictionary
+            auto_detect: Whether to auto-detect printer on initialization
         """
-        self.config = config
         self.printer = None
-        self.vendor_id = None
-        self.product_id = None
+        self.vendor_id = vendor_id
+        self.product_id = product_id
+        self.auto_detect = auto_detect
     
     def detect_printer(self) -> Optional[Tuple[int, int]]:
         """
@@ -99,8 +99,8 @@ class USBConnection:
         Connect to USB printer.
         
         Args:
-            vendor_id: USB vendor ID (if None, uses config or auto-detect)
-            product_id: USB product ID (if None, uses config or auto-detect)
+            vendor_id: USB vendor ID (if None, uses instance value or auto-detect)
+            product_id: USB product ID (if None, uses instance value or auto-detect)
             
         Returns:
             True if connection successful
@@ -118,7 +118,7 @@ class USBConnection:
         if vendor_id and product_id:
             vid, pid = vendor_id, product_id
             logger.info(f"[USB] Connecting to specified device: VID={hex(vid)}, PID={hex(pid)}")
-        elif self.config.get('auto_detect', True):
+        elif self.auto_detect:
             # Auto-detect printer
             detected = self.detect_printer()
             if not detected:
@@ -126,8 +126,8 @@ class USBConnection:
             vid, pid = detected
         else:
             # Use configured IDs
-            vid = self.config.get('vendor_id')
-            pid = self.config.get('product_id')
+            vid = self.vendor_id
+            pid = self.product_id
             
             if not vid or not pid:
                 raise USBConnectionError(
