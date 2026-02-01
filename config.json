@@ -12,10 +12,10 @@
   },
   "gpio": {
     "pins": [
-      17,
-      27,
       22,
-      23
+      27,
+      17,
+      4
     ],
     "bounce_time": 250,
     "pull_up_down": "pull_up"
