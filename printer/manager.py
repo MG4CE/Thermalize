@@ -129,7 +129,7 @@ class PrinterManager:
             if conn_type == 'bluetooth':
                 success = self._connect_bluetooth()
             elif conn_type == 'usb':
-                success = self._connect_usb(self.config['printer'].get('vendor_id'), self.config['printer'].get('product_id'), self.config['printer'].get('auto_detect', True))
+                success = self._connect_usb()
             elif conn_type == 'auto':
                 # Try Bluetooth first if configured, then USB
                 logger.info("[Manager] Auto-detect mode: trying Bluetooth first...")
@@ -137,7 +137,7 @@ class PrinterManager:
                 
                 if not success:
                     logger.info("[Manager] Bluetooth failed, trying USB...")
-                    success = self._connect_usb(self.config['printer'].get('vendor_id'), self.config['printer'].get('product_id'), self.config['printer'].get('auto_detect', True))
+                    success = self._connect_usb()
             else:
                 logger.error(f"[Manager] Unknown connection type: {conn_type}")
                 return False
